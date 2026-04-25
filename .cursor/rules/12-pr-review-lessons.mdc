@@ -1,0 +1,126 @@
+---
+description: Concrete UI patterns from PR review feedback — avoid repeating these mistakes
+globs:
+  - "**/*.{ts,tsx}"
+  - "src/**/*.ts"
+  - "src/**/*.tsx"
+alwaysApply: true
+---
+
+Patterns that caused real PR review rounds on LogosUI. Follow these to get PRs right the first time.
+
+## React Query (TanStack Query)
+
+- Pass **`AbortSignal`** from `queryFn: ({ signal }) => ...` into API helpers that call `fetch`, so superseded list requests are cancelled when filters or pages change quickly.
+- For **paginated or filtered lists**, use **`placeholderData: keepPreviousData`** (or the current library equivalent) so in-flight refetches do **not** replace the whole table with a loading-only state. Prefer an **`aria-busy`** region / subtle “Updating…” hint and optional dimming while **`isPlaceholderData`** is true, instead of unmounting the table and losing focus on pager or filter controls.
+- **Reset `offset` in the same state transition as the new filter or search**, not in a later `useEffect` that reacts to `appliedSearch` / filter state. A deferred effect issues an **extra** `list*` request with the **stale** offset and can flash an empty page. Reset inside the filter handler and inside the **debounced** callback that commits search text (together with `setAppliedSearch`).
+- After **delete** removes the **last row on a page**, clamp **`offset`** to the previous page when needed. If you **`flushSync` + `setOffset`** before `invalidateQueries`, only do so when the user **still** matches the list context from when delete started (compare mutation variables to a **ref** holding current `offset`, filter ids, and applied search); otherwise navigation during the mutation must not be overwritten.
+- Repeated row actions (e.g. **Delete**) need **row-specific** accessible names (`aria-label` including entity name or stable id), not identical visible labels for every row.
+- **`data` and `isError` can co-exist.** After a successful load, a background refetch that fails leaves `isError: true` **and** keeps the previously resolved `data`. Branching render on `isError ? <error/> : data ? <list/> : …` tears the list down on every transient blip and erases what the user was already reading. Instead:
+  - **Render from `data` whenever it is defined**, regardless of `isError`.
+  - Treat `isError` with cached data as a **non-blocking warning** surfaced next to the stale content (e.g. a `role="status"` banner above the list, or a subtle "failed to refresh" badge on a count card), not as a replacement for the content.
+  - Reserve the full-screen / full-panel error state (`role="alert"`, fallback glyph like `—`) for the case where **no data has ever been loaded** (`data === undefined && isError`).
+  - This applies to both single-object queries (health, author name) and list/envelope queries (recent items, totals). For a `StatCard` reading `q.data?.total`, prefer `q.data?.total ?? (q.isPending ? "…" : "—")` over any `isError`-first ternary.
+  - Regression tests should **seed the cache with `queryClient.setQueryData(...)` and then reject the next `queryFn` call** to simulate a refetch failure; assert the cached content stays visible and that the warning surfaces alongside it.
+- **Distinguish pending from error for every per-row async lookup.** When a page resolves a display field (author name, category label, image URL) via N sibling queries, do not collapse "not yet loaded" and "permanently failed" into a single `undefined`. The render branch that shows "…" / `aria-label="Loading …"` will otherwise keep announcing a loading hint forever for any row whose lookup errors. Build a per-id map of `{ kind: "success" | "error" }` and render a stable fallback (`"Unknown author"`, `"Untitled image"`) on error. Cover this with a test that rejects **one** of the sibling queries and asserts both the stable fallback and the absence of the loading label.
+- **Treat TanStack Query's `CancelledError` as cancellation, not failure.** Routine query supersedes (filter changes, route navigation) cancel in-flight queries by throwing `CancelledError` from `@tanstack/query-core` — note the spelling, **double `l`**, distinct from fetch's `AbortError` and axios's `CanceledError`. A guard that only matches `AbortError` / `CanceledError` lets every supersede flow through `QueryCache.onError` / `MutationCache.onError` and produces a stream of misleading `[ui] api error` log entries. Use TanStack's exported **`isCancelledError`** helper (from `@tanstack/react-query`) as the primary guard; keep `name === "AbortError" | "CanceledError" | "CancelledError"` name-matching as belt-and-braces for fetch `DOMException` aborts and axios-style cancellations. Cover both the helper path **and** the name-match path with regression tests so a future refactor of either branch does not silently regress observability. The same guard belongs in any place that decides whether to log, toast, or banner an error — they all share the "intentional cancellation is not a failure" rule.
+
+## Untrusted strings in the DOM
+
+- **Never** use a server-controlled string as **`<a href>`** without **scheme allowlisting**. Prefer parsing with `URL` and only allow **`http:`** and **`https:`**; render **non-link** text (e.g. `<span>` with `title` for the full value) for `javascript:`, `data:`, or other schemes. Applies to image URLs, file paths exposed as links, etc.
+
+## Accessible name / visible label parity (WCAG 2.5.3)
+
+- **`aria-label` must not override a visible label with a different phrase.** WCAG 2.5.3 (Label in Name) requires the accessible name to **contain** the visible text so speech-input users can activate a control by saying what they see. The anti-pattern that bit us:
+
+  ```tsx
+  // ❌ visible: "View all quotes by this author"
+  // ❌ AT-exposed: "View all quotes by Aristotle"
+  <Link aria-label={`View all quotes by ${author.name}`}>
+    View all quotes by this author →
+  </Link>
+  ```
+
+  Speech input ("click View all quotes by this author") fails because the activate-by-name match runs against the accessible name, which now reads "Aristotle" instead of "this author".
+- **Fix by composing the dynamic value into the visible text**, not by layering an `aria-label` on top:
+
+  ```tsx
+  // ✅ visible == accessible name
+  <Link>View all quotes by {author.name} →</Link>
+  ```
+
+  This also makes the link self-describing in the screen-reader rotor view, where stripped-of-context "View all quotes by this author" was already weak.
+- **`aria-label` is acceptable when the visible text is contained inside it verbatim** — e.g. a chip whose visible text is `wisdom` may carry `aria-label='View all quotes tagged "wisdom"'` because the visible text appears unchanged inside the accessible name. The 2.5.3 violation only fires when the visible text and the accessible name diverge.
+- **Lock this in with a regression test on every link / button whose label is built from a dynamic value.** Assert both shapes:
+
+  ```ts
+  expect(link).not.toHaveAttribute("aria-label");           // no override
+  expect(link.textContent).toMatch(/<dynamic value>/);      // visible carries it
+  ```
+
+  Adding only `screen.findByRole("link", { name: /…/ })` is **not** enough — it matches whether the name comes from visible text or from `aria-label`, so it wouldn't catch a regression that re-introduced the override.
+
+## Pickers, dropdowns, and large collections
+
+- Do **not** load **unbounded** or **fully paged-through** corpora on mount just to fill a **`<select>`** (e.g. every image in the system). Prefer **lazy** loading: `enabled: false` until a user gesture (**`onFocus`**, button, or combobox open), **bounded** `limit`, or a **search-driven** async control.
+- A **bounded `limit: N`** picker (e.g. the first 50 options with no search) is acceptable **only** for **optional** foreign-key fields where “leave as-is / pick a common one” is the typical flow (e.g. a portrait image on an author). It is **not** acceptable for:
+  - **Required** foreign-key fields on create or edit, where values beyond the bounded window are unreachable (the form cannot be submitted with any author/image/… past position N).
+  - **List filters**, where the same blind spot silently hides content associated with any entity past the bounded window.
+  - Inline-edit cells where “preserve the row’s current value via a fallback `getX(id)` query” is **not** enough — the fallback only re-selects the existing value, it does not let the user change to a value outside the bounded window.
+  In these cases, use a **searchable async picker** driven by a server-side substring filter (e.g. `listAuthors({ name })` with a debounce and a bounded `limit` per search) so every value is reachable regardless of dataset size. Resolve the current selection’s display label via a separate `getX(id)` query so the input still shows the committed value when it falls outside the latest search page.
+- When you replace a native **`<select>`** with a custom combobox, you inherit the ARIA combobox contract. The listbox must be **fully keyboard-operable**, not just mouse-first:
+  - `role="combobox"` on the input, with `aria-expanded`, `aria-controls`, `aria-autocomplete`, and **`aria-activedescendant`** pointing at the currently highlighted option’s DOM id.
+  - **ArrowDown / ArrowUp** move the active option (with wrap-around); **Home / End** jump to the ends. ArrowDown/Up should also **open** a closed listbox.
+  - **Enter** commits the **active** option — never hard-code “Enter commits `items[0]`”, because that makes every option after the first keyboard-unreachable, and makes an optional “none / All” row at index 0 unreachable via Enter + ArrowDown in filter pickers.
+  - **Escape** closes the listbox.
+  - Mouse hover should update the active option so pointer and keyboard stay in sync, and the active option must be **scrolled into view** as the user arrows around.
+  - Provide a **visible** active-option style that is **distinct** from the selected/committed style (e.g. outline + background), so the highlighted item is unambiguous even when it differs from the committed value.
+  - Commit on click via **`onMouseDown` with `preventDefault`** so the click does not first blur the input and get swallowed by the listbox unmounting.
+  - If you cannot afford this full keyboard contract, use a **native `<select>`** (search by typing and arrow navigation come for free) rather than shipping a mouse-only combobox.
+- The keyboard contract above is implemented once in **`src/components/Combobox.tsx`**. New pickers should compose this primitive (pass `options`, `value`, `query`, `displayValue`, `isOpen`, and slot content for header/footer/empty-state) instead of re-implementing key handling, `aria-activedescendant`, or scroll-into-view. Do not fork the contract for one-off components — extend the primitive if a new behavior is genuinely needed and add a test for it.
+- **Every reopen must reset the active option to the first row.** Closing the listbox (Escape, blur, commit) and reopening it must restart at index 0; only **clamp** the active index for option-set shrinkage **while the listbox is already open**. A "preserve last active row across sessions" effect produces a silent keyboard regression: ArrowDown to row 3 → Escape → reopen → Enter commits the stale row 3 instead of row 1. Implement the reset and the clamp as **two separate effects** (`useEffect(..., [isOpen])` for the reset; `useEffect(..., [isOpen, options.length])` for the clamp), and add a regression test that covers the close/reopen/commit path so future pickers inheriting the primitive do not regress.
+- **DOM ids for option rows must be derived from a stable position (or an explicit option id), never from the committed value.** `aria-activedescendant`, the React `key`, and any consumer reference all point at the same DOM id, so overloading it with `opt.value || "fallback"` collides as soon as a clearable combobox carries a row with `value=""` next to a legitimate option whose value matches the fallback (e.g. `"none"`). Use `${autoId}-opt-${index}` and add a regression test that mounts options like `[{ value: "" }, { value: "none" }, …]` and asserts every row id is unique and `aria-activedescendant` walks them unambiguously.
+- **A picker must never invent a sentinel in the consumer's id namespace.** When the public API is "selected id is an opaque `string`, `""` means no selection", do **not** reserve `"__none__"` (or any other synthetic value) in that same namespace to mark the clear / "All" row, then round-trip it back to `""` in `onSelect`. A real entity whose id happens to equal the sentinel becomes unselectable, and the picker silently swallows a legitimate user choice. Either commit `""` directly for the clear row (it is already the "no selection" value) or carry the clear-row marker on a **separate internal flag** outside the id namespace. Cover with a test that lists an entity whose id literally equals the previously-reserved sentinel and asserts the user can select it.
+
+## Async editors against sub-resources (parent + children)
+
+These rules cover panels that read and mutate a child collection scoped to a parent (e.g. `/quotes/{id}/tags`, `/authors/{id}/books`). They surfaced repeatedly while wiring the per-quote tag editor.
+
+- **Distinguish parent-missing (404) from child-invalid (422) from transient read failures.** Surface each as a distinct, stable UI state — not a single generic "something went wrong" banner. Backends like Logos already give the distinction; do not throw it away.
+- **Parent-missing must collapse the editor into a read-only state, not just print a message.** A 404 from the parent's read query (`GET /quotes/{id}/tags`) **and** a 404 from any child mutation (`POST /quotes/{id}/tags`) must both put the panel into the same parent-missing state. Track with a **sticky local flag** OR'd into the derived `parentMissing`:
+  - The mutation 404 path cannot rely on the read query alone, because the read query may still hold a stale success result from before the parent was deleted. There is a real window where the chip list, empty state, and add UI would otherwise stay rendered against a dead parent.
+  - On the mutation 404 also `invalidateQueries(["children", parentId])` so any other view of the same parent (e.g. a chip cell on the list row) flips to "gone" without a manual refresh.
+  - When entering parent-missing state, clear the child-mutation `localError` so users do not see two banners saying the same thing.
+- **Gate empty-state, the chip/list view, and write controls on `query.isSuccess && !parentMissing`** — never on "absence of a specific known error". A non-404 read failure (transient 500, network blip) must not fall through to `data ?? []`, otherwise the panel renders the error **and** "No items yet." **and** the add picker simultaneously, and the user edits blind: existing associations are hidden and the "addable" set may include children that are actually already attached.
+- **Child-invalid (422) on add must reset the submitted id and disable Add until the value is still in the refreshed option set.** A controlled `<select>` whose value disappears from the new options falls back to the placeholder visually, but state still holds the dead id; a button gated only on `value !== ""` will happily resubmit it. Reset the id explicitly **and** derive `disabled` from `selectable.some(t => t.id === currentValue)` as defense in depth, then `invalidateQueries(["children-catalog"])` so the dropdown repopulates.
+- **Cover both the happy path and the four bad paths in tests:** add success, remove success, parent-404 from read, parent-404 from write, child-422 on write, plus a non-404 read failure that must not collapse into an empty/blind state. These are the regressions reviewers actually catch.
+
+## Vite and environment files
+
+- Require critical public env vars (e.g. **`VITE_*` API base URL**) at **`vite build`** time when production bundles must not ship without them (fail in `vite.config.ts` / `loadEnv`, not only on first browser request).
+- **`.gitignore`**: ignore **`.env.*`** but **un-ignore** committed templates such as **`.env.example`** (`!.env.example`) so optional env files are never committed by mistake.
+
+## Shared `fetch` helpers
+
+- Do **not** set **`Content-Type: application/json`** on every request body in a generic helper; it breaks **`FormData`**, **`Blob`**, etc. Restrict JSON headers to **explicit JSON helpers** (e.g. `postJson` / `putJson` that stringify the body).
+- **Wrap rejected `fetch` promises in a typed transport error.** `await fetch(...)` can reject **before any HTTP response exists** — offline, DNS failure, TLS handshake error, blocked CORS preflight, captive portal, connection reset — and surfaces as a bare `TypeError("Failed to fetch")`. Those bypass any `ApiError` you would have built from a real `Response`, so observability hooks that key on `path` / `method` / `status` see "every endpoint" collapse into a single anonymous `TypeError`, and stable error categorization at the structured-log boundary is lost. Define a sibling **`NetworkError extends Error`** in the same module as `ApiError`, carry **at least `path` and `method`** plus the original error as `cause`, and wrap the rejection inside `fetchJson` / equivalent. Add a **dedicated branch** in the structured logger so the emitted shape stays consistent with `ApiError` events, and **do not include `cause` in the structured payload** (it can carry redirect URLs, proxy bodies, or other PII — keep it for the developer console only). Crucially, **re-throw `AbortError` from the catch unchanged** so cancellation semantics propagate (see the `isCancelledError` rule above). Regression tests must cover (a) a rejected fetch becomes the typed transport error with `path` / `method` populated, and (b) a rejected fetch carrying an `AbortError` is re-thrown identically (same identity, not wrapped).
+
+## URL search params as state
+
+- **If the URL is the source of truth for filter / pagination state, derive it directly from `useSearchParams` — do not seed `useState` from it once at mount.** A `useState(() => searchParams.get("…"))` initializer only runs on the first render of that component instance. Any later URL change while the page stays mounted (browser back/forward, programmatic `navigate('?…')`, sidebar / toolbar links) updates `searchParams` but leaves the local state — and therefore the list query, the toolbar pickers, and the active-filter banner — pointing at the **old** values. The user sees a URL that disagrees with the rendered list and a back button that produces no visible effect. Either:
+  - Derive every URL-backed value directly (`const x = searchParams.get("x") ?? ""`) and route mutations through `setSearchParams(..., { replace: true })`. Keep only the editable draft (e.g. a debounced search-box buffer) in local state, and add a sibling effect that syncs the draft when the committed URL value changes externally so the input reflects back/forward navigation.
+  - Or, if you really need a mirror, add a hydration effect that reacts to every `searchParams` change — but the derived form is simpler and removes a whole class of feedback-loop and stale-snapshot bugs.
+  Add a regression test that programmatically navigates to a new query string while the component stays mounted (a sibling `useNavigate()` button under the same `MemoryRouter` is enough) and asserts the list query refires with the new params.
+- **Centralize URL mutations in one helper that takes a mutator callback** (`(next: URLSearchParams) => void`), constructs the next params from the **functional** form of `setSearchParams((current) => new URLSearchParams(current))`, and calls `setSearchParams(..., { replace: true })` to keep the back stack clean. Concurrent updates (e.g. a debounce committing `?title` while the user clicks a category filter) must never race over a stale snapshot — building the next URL from the functional form is the only safe way.
+- **Empty values must be `delete`d, not `set` to `""`.** Otherwise a touched-then-cleared filter leaves dangling `&category_id=&tag_id=` in shareable links. Filter-change handlers should also delete `offset` in the same URL transition (rather than chasing it in a separate effect) so the next `list*` request never goes out with the stale offset.
+- **Strict numeric parsing for URL params.** `Number.parseInt(raw, 10)` lenient-consumes leading digits, so `?offset=20foo`, `?offset=3.14`, `?offset=1e2`, and `?offset=+5` all yield non-zero values that punch through any "non-integer clamps to 0" doc comment. Validate the **whole string** with `/^\d+$/` before parsing. Add a table-driven regression test that walks every bad shape through the public surface and asserts the first list call uses `offset: 0`.
+- **`flushSync` mutations of `setSearchParams` before `invalidateQueries` when the new URL is part of the next query key.** The `useQuery` key reads from `searchParams`; without `flushSync` the invalidation triggers a refetch that captures the **old** key, so the list goes out with the stale page even though the URL updated synchronously to the user. The same trick the previous `flushSync(setOffset)` used — just applied one layer up.
+- **An editable draft (debounced search box) must resync on _any_ external URL change, not just on changes to its committed value.** The "draft + debounce + commit to `?title`" pattern has a subtle leak: if the user types into the search box and then navigates to another URL whose `?title` value is **the same** (commonly: still missing on both old and new URLs), an effect gated on `appliedTitle` does not fire, the stale draft survives the navigation, and the in-flight debounce timer later appends `?title=stale` to the new URL — a user-visible cross-navigation leak (e.g. type "sto" on `/quotes`, click a `/quotes?author_id=…` deep link before the 400 ms commit, watch `?title=sto` materialize on the destination URL). The fix is twofold: (1) record the URL string we wrote ourselves into a ref inside the centralized `updateSearchParams` helper, and (2) make the resync effect key on the **whole** `searchParams` reference and skip self-writes via the ref. Snapping the draft on external change also kills the pending debounce via the `[draft]` cleanup in the debounce effect, so the timer cannot fire after navigation. Add a regression test that types into the draft, fires an external `navigate('/page?other=…')` (no `?title` on either side), waits past the debounce window, and asserts `?title` never appeared on the destination URL **and** the input now reflects the destination's committed value.
+
+## Bounded "list everything" helpers
+
+- **A bounded "list everything" helper is not the same as `Set.has(id)`.** Helpers like `listAllTags()` cap at a known maximum (e.g. 500) and report `truncated: true` when the corpus exceeds it. Treating absence from `helper.items` as "the entity does not exist" silently mislabels valid references whenever the corpus grew past the cap — a deep link to tag #501 becomes a `(deleted tag)` pill, a per-row author label collapses to "Unknown author", a category filter dropdown silently drops options. Whenever you decide a referenced id is "missing", **gate the decision on `!truncated`** (or fetch the single entity by id with `getX(id)` and treat 404 as the canonical "missing" signal). Cover with a regression test that mocks the helper to return `{ items: [other], truncated: true }` and asserts the deleted-state UI does **not** render — and that the underlying API call still uses the requested id.
+
+## Lockfile
+
+- Commit **`package-lock.json`** (or the repo's chosen lockfile) so **`npm ci`** and CI are deterministic.
