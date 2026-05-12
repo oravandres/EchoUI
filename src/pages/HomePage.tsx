@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchHealth } from "@/api/health";
+import { listPlatforms } from "@/api/platforms";
 
 export function HomePage() {
   const healthQuery = useQuery({
@@ -7,6 +8,12 @@ export function HomePage() {
     queryFn: fetchHealth,
     refetchInterval: 30_000,
   });
+  const platformsQuery = useQuery({
+    queryKey: ["platforms", "count"],
+    queryFn: ({ signal }) => listPlatforms({ limit: 1, signal }),
+    refetchInterval: 30_000,
+  });
+  const hasPlatformCount = platformsQuery.data?.total !== undefined;
 
   return (
     <div className="page-container" id="home-page">
@@ -32,7 +39,12 @@ export function HomePage() {
           <div className="stat-icon">🌐</div>
           <div className="stat-content">
             <span className="stat-label">Platforms</span>
-            <span className="stat-value text-muted">Coming soon</span>
+            <span className={`stat-value ${hasPlatformCount ? "text-success" : platformsQuery.isError ? "text-warning" : "text-muted"}`}>
+              {hasPlatformCount &&
+                `${platformsQuery.data!.total.toLocaleString()} connected`}
+              {!hasPlatformCount && platformsQuery.isPending && "Checking…"}
+              {!hasPlatformCount && platformsQuery.isError && "Unavailable"}
+            </span>
           </div>
         </div>
 
