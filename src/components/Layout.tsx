@@ -21,10 +21,14 @@ export function Layout() {
           <span className="brand-name">Echo</span>
         </div>
 
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" aria-label="Main">
           <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`} id="nav-dashboard">
             <span className="nav-icon">◉</span>
             <span>Dashboard</span>
+          </NavLink>
+          <NavLink to="/platforms" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`} id="nav-platforms">
+            <span className="nav-icon">🌐</span>
+            <span>Platforms</span>
           </NavLink>
         </nav>
 

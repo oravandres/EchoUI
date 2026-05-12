@@ -125,7 +125,7 @@ unset, preventing accidental deploys with a dangling API reference.
 | Phase | Scope | Status |
 |-------|-------|--------|
 | ~~Phase 1~~ | Project skeleton: Vite + React + TypeScript, design system, layout, health check | ✅ Done |
-| Phase 2 | Platform status page: list connected platforms, connection health | Planned |
+| ~~Phase 2~~ | Platform status page: list connected platforms, connection health | ✅ Done |
 | Phase 3 | Post composer: create and publish posts to multiple platforms | Planned |
 | Phase 4 | Post list: view published posts, status, engagement | Planned |
 | Phase 5 | Statistics dashboard: charts, engagement metrics, trends | Planned |

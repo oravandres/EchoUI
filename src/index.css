@@ -340,6 +340,131 @@ a:hover {
   color: var(--text-muted);
 }
 
+/* ── Status Banner ───────────────────────────────────────── */
+.status-banner {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.status-banner-warning {
+  color: var(--color-warning);
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+/* ── Platforms ───────────────────────────────────────────── */
+.platforms-panel {
+  padding: var(--space-2xl);
+}
+
+.section-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: var(--space-sm);
+}
+
+.section-copy {
+  color: var(--text-secondary);
+  max-width: 560px;
+}
+
+.request-id {
+  margin-top: var(--space-md);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.platform-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-lg);
+  list-style: none;
+}
+
+.platform-card {
+  padding: var(--space-lg);
+}
+
+.platform-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.platform-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.platform-meta {
+  margin-top: var(--space-xs);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-transform: capitalize;
+  overflow-wrap: anywhere;
+}
+
+.status-badge {
+  flex-shrink: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.status-badge-healthy {
+  color: var(--color-success);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.status-badge-degraded,
+.status-badge-unknown {
+  color: var(--color-warning);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.status-badge-disconnected {
+  color: var(--color-error);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.platform-message {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: var(--space-md);
+}
+
+.platform-checked {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.platform-skeleton {
+  height: 84px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0.05)
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.platform-skeleton + .platform-skeleton {
+  margin-top: var(--space-md);
+}
+
 /* ── Welcome Section ──────────────────────────────────────── */
 .welcome-section {
   padding: var(--space-2xl);
@@ -425,6 +550,15 @@ a:hover {
   }
 }
 
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 768px) {
   .sidebar {
@@ -468,6 +602,10 @@ a:hover {
 
   .welcome-features {
     grid-template-columns: 1fr;
+  }
+
+  .platform-card-header {
+    flex-direction: column;
   }
 }
 

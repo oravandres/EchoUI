@@ -46,6 +46,11 @@ src/
 └── router.tsx     React Router configuration
 ```
 
+## Routes
+
+- `/` — dashboard with API health and platform status summary
+- `/platforms` — connected platform status and connection health
+
 ## Design
 
 - **Dark theme** with glassmorphism effects
