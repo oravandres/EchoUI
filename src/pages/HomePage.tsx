@@ -5,7 +5,7 @@ import { listPlatforms } from "@/api/platforms";
 export function HomePage() {
   const healthQuery = useQuery({
     queryKey: ["health"],
-    queryFn: fetchHealth,
+    queryFn: ({ signal }) => fetchHealth(signal),
     refetchInterval: 30_000,
   });
   const platformsQuery = useQuery({

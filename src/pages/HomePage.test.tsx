@@ -34,6 +34,10 @@ describe("HomePage", () => {
     renderWithQueryClient(<HomePage />);
 
     expect(await screen.findByText("2 connected")).toBeInTheDocument();
+    expect(fetchHealthMock).toHaveBeenCalledWith(expect.any(AbortSignal));
+    expect(listPlatformsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 1, signal: expect.any(AbortSignal) })
+    );
   });
 
   it("shows a stable unavailable state when the platforms endpoint fails", async () => {
