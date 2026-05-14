@@ -37,15 +37,25 @@ describe("PlatformsPage", () => {
   });
 
   it("renders connected platform health", async () => {
-    listPlatformsMock.mockResolvedValue(platformsResponse([blueskyPlatform]));
+    listPlatformsMock.mockResolvedValue(platformsResponse([xPlatform]));
 
     renderWithQueryClient(<PlatformsPage />);
 
     expect(
-      await screen.findByRole("heading", { name: "Bluesky" })
+      await screen.findByRole("heading", { name: "Main X" })
     ).toBeInTheDocument();
     expect(screen.getByText("Healthy")).toBeInTheDocument();
-    expect(screen.getByText("API reachable")).toBeInTheDocument();
+    expect(screen.getByText("x - @echo.test")).toBeInTheDocument();
+  });
+
+  it("maps disabled platform connections to a stable disabled label", async () => {
+    listPlatformsMock.mockResolvedValue(
+      platformsResponse([{ ...xPlatform, enabled: false }])
+    );
+
+    renderWithQueryClient(<PlatformsPage />);
+
+    expect(await screen.findByText("Disabled")).toBeInTheDocument();
   });
 
   it("renders an empty state when Echo reports no platform connections", async () => {
@@ -75,13 +85,13 @@ describe("PlatformsPage", () => {
     const client = createTestQueryClient();
     client.setQueryData(
       ["platforms", "list"],
-      platformsResponse([blueskyPlatform])
+      platformsResponse([xPlatform])
     );
     listPlatformsMock.mockRejectedValue(new Error("temporary outage"));
 
     renderWithQueryClient(<PlatformsPage />, client);
 
-    expect(screen.getByRole("heading", { name: "Bluesky" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Main X" })).toBeInTheDocument();
     expect(
       await screen.findByRole("status", {
         name: "Could not refresh platform status. Showing last known data.",
@@ -90,22 +100,19 @@ describe("PlatformsPage", () => {
   });
 });
 
-const blueskyPlatform: PlatformConnection = {
+const xPlatform: PlatformConnection = {
   id: "platform-1",
-  platform: "bluesky",
-  display_name: "Bluesky",
-  account_handle: "@echo.test",
-  status: "healthy",
-  last_checked_at: "2026-05-12T17:00:00Z",
-  message: "API reachable",
+  platform: "x",
+  displayName: "Main X",
+  accountHandle: "@echo.test",
+  enabled: true,
+  lastCheckedAt: "2026-05-12T17:00:00Z",
+  lastHealthStatus: "healthy",
 };
 
 function platformsResponse(items: PlatformConnection[]) {
   return {
-    items,
-    total: items.length,
-    limit: 20,
-    offset: 0,
+    data: items,
   };
 }
 

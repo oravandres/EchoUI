@@ -426,15 +426,19 @@ a:hover {
   background: rgba(16, 185, 129, 0.1);
 }
 
-.status-badge-degraded,
 .status-badge-unknown {
   color: var(--color-warning);
   background: rgba(245, 158, 11, 0.1);
 }
 
-.status-badge-disconnected {
+.status-badge-unhealthy {
   color: var(--color-error);
   background: rgba(239, 68, 68, 0.1);
+}
+
+.status-badge-disabled {
+  color: var(--text-muted);
+  background: rgba(148, 163, 184, 0.1);
 }
 
 .platform-message {

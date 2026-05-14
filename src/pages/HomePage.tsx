@@ -10,10 +10,11 @@ export function HomePage() {
   });
   const platformsQuery = useQuery({
     queryKey: ["platforms", "count"],
-    queryFn: ({ signal }) => listPlatforms({ limit: 1, signal }),
+    queryFn: ({ signal }) => listPlatforms({ signal }),
     refetchInterval: 30_000,
   });
-  const hasPlatformCount = platformsQuery.data?.total !== undefined;
+  const platformCount = platformsQuery.data?.data.length;
+  const hasPlatformCount = platformCount !== undefined;
 
   return (
     <div className="page-container" id="home-page">
@@ -41,7 +42,7 @@ export function HomePage() {
             <span className="stat-label">Platforms</span>
             <span className={`stat-value ${hasPlatformCount ? "text-success" : platformsQuery.isError ? "text-warning" : "text-muted"}`}>
               {hasPlatformCount &&
-                `${platformsQuery.data!.total.toLocaleString()} connected`}
+                `${platformCount.toLocaleString()} connected`}
               {!hasPlatformCount && platformsQuery.isPending && "Checking…"}
               {!hasPlatformCount && platformsQuery.isError && "Unavailable"}
             </span>
