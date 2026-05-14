@@ -126,8 +126,8 @@ unset, preventing accidental deploys with a dangling API reference.
 |-------|-------|--------|
 | ~~Phase 1~~ | Project skeleton: Vite + React + TypeScript, design system, layout, health check | ✅ Done |
 | ~~Phase 2~~ | Platform status page: list connected platforms, connection health | ✅ Done |
-| Phase 3 | Post composer: create and publish posts to multiple platforms | Planned |
-| Phase 4 | Post list: view published posts, status, engagement | Planned |
+| Phase 3 | Post composer: create and publish posts to multiple platforms | Partially started — disabled composer shell; publishing blocked on browser-safe admin auth |
+| Phase 4 | Post list: view published posts, status, engagement | Partially started — read-only list shell |
 | Phase 5 | Statistics dashboard: charts, engagement metrics, trends | Planned |
 | Phase 6 | Kubernetes manifests in MiMi repo | Planned |
 
@@ -138,7 +138,7 @@ unset, preventing accidental deploys with a dangling API reference.
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | Dashboard | Stats overview, API health, recent activity |
-| `/posts` | Posts | List, create, manage social media posts |
+| `/posts` | Posts | Read-only post history; composer disabled until browser-safe admin auth |
 | `/posts/{id}` | Post Detail | Post content, platform status, engagement |
 | `/platforms` | Platforms | Connected accounts, health status |
 | `/stats` | Statistics | Engagement charts, trends, analytics |
