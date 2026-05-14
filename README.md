@@ -49,7 +49,7 @@ src/
 ## Routes
 
 - `/` — dashboard with API health and platform status summary
-- `/posts` — read-only post history with disabled composer until admin session support exists
+- `/posts` — post history with admin-session publishing and deletion controls
 - `/platforms` — connected platform status and connection health
 
 ## Design

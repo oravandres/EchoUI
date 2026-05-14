@@ -1,6 +1,21 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type AdminSession,
+  getAdminSession,
+  loginAdminSession,
+  logoutAdminSession,
+} from "@/api/adminSession";
 import { ApiError } from "@/api/client";
-import { type Post, type PostStatus, listPosts } from "@/api/posts";
+import { type PlatformConnection, listPlatforms } from "@/api/platforms";
+import {
+  type CreatePostsInput,
+  type Post,
+  type PostStatus,
+  createPosts,
+  deletePost,
+  listPosts,
+} from "@/api/posts";
 
 const statusLabels: Record<PostStatus, string> = {
   pending: "Pending",
@@ -9,22 +24,150 @@ const statusLabels: Record<PostStatus, string> = {
   deleted: "Deleted",
 };
 
+const lockedAdminSession: AdminSession = {
+  authenticated: false,
+  csrfToken: "",
+  expiresAt: "",
+};
+
 export function PostsPage() {
+  const queryClient = useQueryClient();
+  const [loginToken, setLoginToken] = useState("");
+  const [postText, setPostText] = useState("");
+  const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>([]);
+  const [platformSelectionTouched, setPlatformSelectionTouched] =
+    useState(false);
+
   const postsQuery = useQuery({
     queryKey: ["posts", "list"],
     queryFn: ({ signal }) => listPosts({ signal }),
+    refetchInterval: 30_000,
+  });
+  const adminSessionQuery = useQuery({
+    queryKey: ["admin", "session"],
+    queryFn: ({ signal }) => getAdminSession({ signal }),
+    retry: false,
+    staleTime: 30_000,
+  });
+  const platformsQuery = useQuery({
+    queryKey: ["platforms", "list"],
+    queryFn: ({ signal }) => listPlatforms({ signal }),
     refetchInterval: 30_000,
   });
 
   const posts = postsQuery.data?.data;
   const hasData = posts !== undefined;
   const refreshError = postsQuery.isError && hasData;
+  const adminSession = adminSessionQuery.data;
+  const isAuthenticated = adminSession?.authenticated === true;
+  const csrfToken = isAuthenticated ? adminSession.csrfToken : "";
+  const platforms = platformsQuery.data?.data;
+  const enabledPlatforms = useMemo(
+    () => platforms?.filter((platform) => platform.enabled) ?? [],
+    [platforms]
+  );
+  const enabledPlatformIds = useMemo(
+    () => new Set(enabledPlatforms.map((platform) => platform.id)),
+    [enabledPlatforms]
+  );
+  const selectedEnabledPlatformIds = selectedPlatformIds.filter((id) =>
+    enabledPlatformIds.has(id)
+  );
+
+  useEffect(() => {
+    if (platformSelectionTouched || enabledPlatforms.length === 0) return;
+    setSelectedPlatformIds(enabledPlatforms.map((platform) => platform.id));
+  }, [enabledPlatforms, platformSelectionTouched]);
+
+  const loginMutation = useMutation({
+    mutationFn: (token: string) => loginAdminSession(token),
+    onSuccess: (session) => {
+      queryClient.setQueryData(["admin", "session"], session);
+      setLoginToken("");
+    },
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: () => logoutAdminSession(),
+    onSuccess: () => {
+      queryClient.setQueryData<AdminSession>(["admin", "session"], {
+        authenticated: false,
+        csrfToken: "",
+        expiresAt: "",
+      });
+      setPostText("");
+      setSelectedPlatformIds([]);
+      setPlatformSelectionTouched(false);
+    },
+  });
+
+  const publishMutation = useMutation({
+    mutationFn: (input: CreatePostsInput) => {
+      if (csrfToken === "") {
+        throw new Error("admin session is not available");
+      }
+      return createPosts(input, { csrfToken });
+    },
+    onError: (error) => {
+      if (isAdminAuthError(error)) {
+        queryClient.setQueryData(["admin", "session"], lockedAdminSession);
+      }
+    },
+    onSuccess: () => {
+      setPostText("");
+      void queryClient.invalidateQueries({ queryKey: ["posts", "list"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (postId: string) => {
+      if (csrfToken === "") {
+        throw new Error("admin session is not available");
+      }
+      return deletePost(postId, { csrfToken });
+    },
+    onError: (error) => {
+      if (isAdminAuthError(error)) {
+        queryClient.setQueryData(["admin", "session"], lockedAdminSession);
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["posts", "list"] });
+    },
+  });
+
+  function handleLoginSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const token = loginToken.trim();
+    if (token === "") return;
+    loginMutation.mutate(token);
+  }
+
+  function handlePublishSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const text = postText.trim();
+    if (text === "" || selectedEnabledPlatformIds.length === 0) return;
+    publishMutation.mutate({
+      platformConnectionIds: selectedEnabledPlatformIds,
+      text,
+    });
+  }
+
+  function handlePlatformToggle(id: string, checked: boolean) {
+    setPlatformSelectionTouched(true);
+    setSelectedPlatformIds((current) => {
+      if (checked) {
+        return current.includes(id) ? current : [...current, id];
+      }
+      return current.filter((platformId) => platformId !== id);
+    });
+  }
 
   return (
     <div className="page-container" id="posts-page">
       <header className="page-header">
         <h1 className="page-title">Posts</h1>
-        <p className="page-subtitle">Read-only publishing history from Echo</p>
+        <p className="page-subtitle">Publishing history from Echo</p>
       </header>
 
       {refreshError ? (
@@ -37,7 +180,37 @@ export function PostsPage() {
         </p>
       ) : null}
 
-      <DisabledComposer />
+      {deleteMutation.isError ? (
+        <p className="status-banner status-banner-warning" role="alert">
+          Echo could not delete the post.
+          <RequestId error={deleteMutation.error} />
+        </p>
+      ) : null}
+
+      <Composer
+        adminSession={adminSession}
+        isSessionLoading={adminSessionQuery.isPending}
+        isSessionUnavailable={adminSessionQuery.isError}
+        loginToken={loginToken}
+        onLoginTokenChange={setLoginToken}
+        onLoginSubmit={handleLoginSubmit}
+        isLoggingIn={loginMutation.isPending}
+        loginError={loginMutation.error}
+        onLogout={() => logoutMutation.mutate()}
+        isLoggingOut={logoutMutation.isPending}
+        platforms={platforms}
+        isPlatformsLoading={platformsQuery.isPending && platforms === undefined}
+        isPlatformsUnavailable={platformsQuery.isError && platforms === undefined}
+        hasPlatformRefreshError={platformsQuery.isError && platforms !== undefined}
+        selectedPlatformIds={selectedPlatformIds}
+        onPlatformToggle={handlePlatformToggle}
+        postText={postText}
+        onPostTextChange={setPostText}
+        onPublishSubmit={handlePublishSubmit}
+        isPublishing={publishMutation.isPending}
+        publishError={publishMutation.error}
+        publishSucceeded={publishMutation.isSuccess}
+      />
 
       {!hasData && postsQuery.isPending ? (
         <div
@@ -82,7 +255,15 @@ export function PostsPage() {
       {hasData && posts.length > 0 ? (
         <ul className="post-list" role="list" aria-label="Published posts">
           {posts.map((post) => (
-            <PostCard key={post.id} post={post} />
+            <PostCard
+              key={post.id}
+              post={post}
+              canDelete={isAuthenticated && post.status !== "deleted"}
+              isDeleting={
+                deleteMutation.isPending && deleteMutation.variables === post.id
+              }
+              onDelete={(postId) => deleteMutation.mutate(postId)}
+            />
           ))}
         </ul>
       ) : null}
@@ -90,35 +271,257 @@ export function PostsPage() {
   );
 }
 
-function DisabledComposer() {
+type ComposerProps = {
+  adminSession?: AdminSession;
+  isSessionLoading: boolean;
+  isSessionUnavailable: boolean;
+  loginToken: string;
+  onLoginTokenChange: (token: string) => void;
+  onLoginSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  isLoggingIn: boolean;
+  loginError: unknown;
+  onLogout: () => void;
+  isLoggingOut: boolean;
+  platforms?: PlatformConnection[];
+  isPlatformsLoading: boolean;
+  isPlatformsUnavailable: boolean;
+  hasPlatformRefreshError: boolean;
+  selectedPlatformIds: string[];
+  onPlatformToggle: (id: string, checked: boolean) => void;
+  postText: string;
+  onPostTextChange: (text: string) => void;
+  onPublishSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  isPublishing: boolean;
+  publishError: unknown;
+  publishSucceeded: boolean;
+};
+
+function Composer({
+  adminSession,
+  isSessionLoading,
+  isSessionUnavailable,
+  loginToken,
+  onLoginTokenChange,
+  onLoginSubmit,
+  isLoggingIn,
+  loginError,
+  onLogout,
+  isLoggingOut,
+  platforms,
+  isPlatformsLoading,
+  isPlatformsUnavailable,
+  hasPlatformRefreshError,
+  selectedPlatformIds,
+  onPlatformToggle,
+  postText,
+  onPostTextChange,
+  onPublishSubmit,
+  isPublishing,
+  publishError,
+  publishSucceeded,
+}: ComposerProps) {
+  const isAuthenticated = adminSession?.authenticated === true;
+  const enabledPlatforms =
+    platforms?.filter((platform) => platform.enabled) ?? [];
+  const enabledPlatformIds = new Set(
+    enabledPlatforms.map((platform) => platform.id)
+  );
+  const selectedEnabledPlatformIds = selectedPlatformIds.filter((id) =>
+    enabledPlatformIds.has(id)
+  );
+  const textLength = Array.from(postText).length;
+  const trimmedText = postText.trim();
+  const canPublish =
+    isAuthenticated &&
+    enabledPlatforms.length > 0 &&
+    selectedEnabledPlatformIds.length > 0 &&
+    trimmedText !== "" &&
+    textLength <= 280 &&
+    !isPublishing;
+
   return (
     <section className="composer-panel glass" aria-labelledby="composer-title">
       <div className="composer-header">
         <h2 className="section-title" id="composer-title">
           Compose
         </h2>
-        <span className="status-badge status-badge-disabled">Disabled</span>
+        <div className="composer-actions">
+          <span
+            className={
+              isAuthenticated
+                ? "status-badge status-badge-healthy"
+                : "status-badge status-badge-disabled"
+            }
+          >
+            {isAuthenticated ? "Ready" : "Locked"}
+          </span>
+          {isAuthenticated ? (
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={isLoggingOut}
+              onClick={onLogout}
+            >
+              Sign out
+            </button>
+          ) : null}
+        </div>
       </div>
-      <fieldset className="composer-fieldset" disabled>
-        <label className="composer-label" htmlFor="post-composer-text">
-          Post text
-        </label>
-        <textarea
-          id="post-composer-text"
-          className="composer-textarea"
-          rows={4}
-          placeholder="Publishing requires admin session support."
-        />
-        <button className="composer-button" type="button">
-          Publish
-        </button>
-      </fieldset>
-      <p className="section-copy">Publishing requires admin session support.</p>
+
+      {!isAuthenticated ? (
+        <form className="admin-login-form" onSubmit={onLoginSubmit}>
+          <label className="composer-label" htmlFor="admin-session-token">
+            Admin token
+          </label>
+          <div className="admin-login-row">
+            <input
+              id="admin-session-token"
+              className="admin-token-input"
+              type="password"
+              autoComplete="current-password"
+              value={loginToken}
+              onChange={(event) => onLoginTokenChange(event.target.value)}
+              disabled={isLoggingIn}
+            />
+            <button
+              className="composer-button"
+              type="submit"
+              disabled={isLoggingIn || loginToken.trim() === ""}
+            >
+              Unlock
+            </button>
+          </div>
+          {isSessionLoading ? (
+            <p className="section-copy" role="status">
+              Checking admin session.
+            </p>
+          ) : null}
+          {isSessionUnavailable ? (
+            <p className="section-copy" role="alert">
+              Admin session is unavailable.
+            </p>
+          ) : null}
+          {loginError ? (
+            <p className="section-copy" role="alert">
+              Echo did not accept the admin token.
+              <RequestId error={loginError} />
+            </p>
+          ) : null}
+        </form>
+      ) : (
+        <form className="composer-form" onSubmit={onPublishSubmit}>
+          <fieldset className="composer-fieldset">
+            <legend className="composer-label">Platforms</legend>
+            {hasPlatformRefreshError ? (
+              <p className="section-copy" role="status">
+                Could not refresh platforms. Showing last known connections.
+              </p>
+            ) : null}
+            {isPlatformsLoading ? (
+              <p className="section-copy" role="status">
+                Loading platforms.
+              </p>
+            ) : null}
+            {isPlatformsUnavailable ? (
+              <p className="section-copy" role="alert">
+                Platforms are unavailable.
+              </p>
+            ) : null}
+            {platforms !== undefined && enabledPlatforms.length === 0 ? (
+              <p className="section-copy">No enabled platforms available.</p>
+            ) : null}
+            {platforms !== undefined && platforms.length > 0 ? (
+              <div className="platform-choice-list">
+                {platforms.map((platform) => (
+                  <label
+                    key={platform.id}
+                    className={`platform-choice ${platform.enabled ? "" : "platform-choice-disabled"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={
+                        platform.enabled &&
+                        selectedPlatformIds.includes(platform.id)
+                      }
+                      disabled={!platform.enabled}
+                      onChange={(event) =>
+                        onPlatformToggle(platform.id, event.target.checked)
+                      }
+                    />
+                    <span>
+                      <span className="platform-choice-name">
+                        {platform.displayName}
+                      </span>
+                      <span className="platform-choice-meta">
+                        {platform.accountHandle || platform.platform}
+                      </span>
+                    </span>
+                    <span
+                      className={
+                        platform.enabled
+                          ? "status-badge status-badge-healthy"
+                          : "status-badge status-badge-disabled"
+                      }
+                    >
+                      {platform.enabled ? "Enabled" : "Disabled"}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </fieldset>
+
+          <fieldset className="composer-fieldset">
+            <label className="composer-label" htmlFor="post-composer-text">
+              Post text
+            </label>
+            <textarea
+              id="post-composer-text"
+              className="composer-textarea"
+              rows={4}
+              value={postText}
+              aria-describedby="post-composer-count"
+              onChange={(event) => onPostTextChange(event.target.value)}
+            />
+            <p
+              className={`character-count ${textLength > 280 ? "text-error" : ""}`}
+              id="post-composer-count"
+            >
+              {textLength}/280
+            </p>
+          </fieldset>
+
+          <button className="composer-button" type="submit" disabled={!canPublish}>
+            {isPublishing ? "Publishing" : "Publish"}
+          </button>
+          {publishError ? (
+            <p className="section-copy" role="alert">
+              Echo could not publish the post.
+              <RequestId error={publishError} />
+            </p>
+          ) : null}
+          {publishSucceeded ? (
+            <p className="section-copy" role="status">
+              Post request completed. Refreshing posts.
+            </p>
+          ) : null}
+        </form>
+      )}
     </section>
   );
 }
 
-function PostCard({ post }: { post: Post }) {
+function PostCard({
+  post,
+  canDelete,
+  isDeleting,
+  onDelete,
+}: {
+  post: Post;
+  canDelete: boolean;
+  isDeleting: boolean;
+  onDelete: (postId: string) => void;
+}) {
   const createdAt = formatDate(post.createdAt);
   const publishedAt = post.publishedAt ? formatDate(post.publishedAt) : null;
 
@@ -167,7 +570,35 @@ function PostCard({ post }: { post: Post }) {
           </div>
         ) : null}
       </dl>
+
+      {canDelete ? (
+        <button
+          className="danger-button post-delete-button"
+          type="button"
+          disabled={isDeleting}
+          aria-label={`Delete post ${post.id}`}
+          onClick={() => onDelete(post.id)}
+        >
+          {isDeleting ? "Deleting" : "Delete"}
+        </button>
+      ) : null}
     </li>
+  );
+}
+
+function RequestId({ error }: { error: unknown }) {
+  if (!(error instanceof ApiError) || !error.requestId) return null;
+  return (
+    <>
+      {" "}
+      Request ID: <code>{error.requestId}</code>
+    </>
+  );
+}
+
+function isAdminAuthError(error: unknown): boolean {
+  return (
+    error instanceof ApiError && (error.status === 401 || error.status === 403)
   );
 }
 

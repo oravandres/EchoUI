@@ -496,6 +496,37 @@ a:hover {
   gap: var(--space-md);
 }
 
+.composer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.admin-login-form,
+.composer-form {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.admin-login-row {
+  display: flex;
+  gap: var(--space-md);
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.admin-token-input {
+  flex: 1 1 260px;
+  min-width: 0;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  padding: var(--space-sm) var(--space-md);
+  font: inherit;
+}
+
 .composer-fieldset {
   display: grid;
   gap: var(--space-md);
@@ -529,14 +560,83 @@ a:hover {
   opacity: 0.65;
 }
 
-.composer-button {
+.composer-button,
+.secondary-button,
+.danger-button {
   justify-self: start;
-  border: 0;
   border-radius: var(--radius-md);
   padding: var(--space-sm) var(--space-lg);
+  font: inherit;
+  font-weight: 700;
+  transition: opacity var(--transition-fast), border-color var(--transition-fast);
+}
+
+.composer-button {
+  border: 0;
   color: var(--text-inverse);
   background: var(--accent-gradient);
+}
+
+.secondary-button,
+.danger-button {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--surface-glass-border);
+}
+
+.danger-button {
+  color: var(--color-error);
+}
+
+.secondary-button:disabled,
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.platform-choice-list {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.platform-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.platform-choice-disabled {
+  opacity: 0.62;
+}
+
+.platform-choice-name,
+.platform-choice-meta {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.platform-choice-name {
   font-weight: 700;
+}
+
+.platform-choice-meta {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.character-count {
+  justify-self: end;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.post-delete-button {
+  margin-top: var(--space-lg);
 }
 
 .post-list {
