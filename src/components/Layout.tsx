@@ -30,6 +30,10 @@ export function Layout() {
             <span className="nav-icon">🌐</span>
             <span>Platforms</span>
           </NavLink>
+          <NavLink to="/posts" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`} id="nav-posts">
+            <span className="nav-icon">📝</span>
+            <span>Posts</span>
+          </NavLink>
         </nav>
 
         <div className="sidebar-footer">

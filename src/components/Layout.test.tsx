@@ -24,4 +24,25 @@ describe("Layout", () => {
       screen.getByRole("heading", { name: "Platforms page" })
     ).toBeInTheDocument();
   });
+
+  it("renders post navigation and routes the posts outlet", () => {
+    render(
+      <MemoryRouter initialEntries={["/posts"]}>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route path="posts" element={<h1>Posts page</h1>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    const link = within(nav).getByRole("link", { name: /posts/i });
+
+    expect(link).toHaveAttribute("href", "/posts");
+    expect(link).toHaveClass("active");
+    expect(
+      screen.getByRole("heading", { name: "Posts page" })
+    ).toBeInTheDocument();
+  });
 });

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchHealth } from "@/api/health";
 import { listPlatforms } from "@/api/platforms";
+import { listPosts } from "@/api/posts";
 
 export function HomePage() {
   const healthQuery = useQuery({
@@ -13,8 +14,15 @@ export function HomePage() {
     queryFn: ({ signal }) => listPlatforms({ signal }),
     refetchInterval: 30_000,
   });
+  const postsQuery = useQuery({
+    queryKey: ["posts", "count"],
+    queryFn: ({ signal }) => listPosts({ signal }),
+    refetchInterval: 30_000,
+  });
   const platformCount = platformsQuery.data?.data.length;
   const hasPlatformCount = platformCount !== undefined;
+  const postCount = postsQuery.data?.data.length;
+  const hasPostCount = postCount !== undefined;
 
   return (
     <div className="page-container" id="home-page">
@@ -53,7 +61,11 @@ export function HomePage() {
           <div className="stat-icon">📝</div>
           <div className="stat-content">
             <span className="stat-label">Posts</span>
-            <span className="stat-value text-muted">Coming soon</span>
+            <span className={`stat-value ${hasPostCount ? "text-success" : postsQuery.isError ? "text-warning" : "text-muted"}`}>
+              {hasPostCount && `${postCount.toLocaleString()} tracked`}
+              {!hasPostCount && postsQuery.isPending && "Checking…"}
+              {!hasPostCount && postsQuery.isError && "Unavailable"}
+            </span>
           </div>
         </div>
 

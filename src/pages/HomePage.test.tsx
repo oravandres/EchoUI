@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchHealth } from "@/api/health";
 import { listPlatforms } from "@/api/platforms";
+import { listPosts } from "@/api/posts";
 import { HomePage } from "@/pages/HomePage";
 
 vi.mock("@/api/health", () => ({
@@ -14,8 +15,13 @@ vi.mock("@/api/platforms", () => ({
   listPlatforms: vi.fn(),
 }));
 
+vi.mock("@/api/posts", () => ({
+  listPosts: vi.fn(),
+}));
+
 const fetchHealthMock = vi.mocked(fetchHealth);
 const listPlatformsMock = vi.mocked(listPlatforms);
+const listPostsMock = vi.mocked(listPosts);
 
 describe("HomePage", () => {
   afterEach(() => {
@@ -46,6 +52,22 @@ describe("HomePage", () => {
         },
       ],
     });
+    listPostsMock.mockResolvedValue({
+      data: [
+        {
+          id: "post-1",
+          platformConnectionId: "conn-1",
+          platform: "x",
+          externalPostId: "tweet-1",
+          text: "hello from Echo",
+          status: "published",
+          errorMessage: "",
+          publishedAt: "2026-05-14T12:00:00Z",
+          createdAt: "2026-05-14T12:00:00Z",
+          updatedAt: "2026-05-14T12:00:00Z",
+        },
+      ],
+    });
 
     renderWithQueryClient(<HomePage />);
 
@@ -54,16 +76,32 @@ describe("HomePage", () => {
     expect(listPlatformsMock).toHaveBeenCalledWith(
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     );
+    expect(await screen.findByText("1 tracked")).toBeInTheDocument();
+    expect(listPostsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
   });
 
   it("shows a stable unavailable state when the platforms endpoint fails", async () => {
     fetchHealthMock.mockResolvedValue({ status: "healthy" });
     listPlatformsMock.mockRejectedValue(new Error("database password leaked"));
+    listPostsMock.mockResolvedValue({ data: [] });
 
     renderWithQueryClient(<HomePage />);
 
     expect(await screen.findByText("Unavailable")).toBeInTheDocument();
     expect(screen.queryByText(/database password/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a stable unavailable state when the posts endpoint fails", async () => {
+    fetchHealthMock.mockResolvedValue({ status: "healthy" });
+    listPlatformsMock.mockResolvedValue({ data: [] });
+    listPostsMock.mockRejectedValue(new Error("admin token leaked"));
+
+    renderWithQueryClient(<HomePage />);
+
+    expect(await screen.findByText("Unavailable")).toBeInTheDocument();
+    expect(screen.queryByText(/admin token/i)).not.toBeInTheDocument();
   });
 });
 
