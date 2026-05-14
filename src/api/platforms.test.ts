@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { listPlatforms } from "@/api/platforms";
+import { createPlatform, listPlatforms } from "@/api/platforms";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -53,5 +53,61 @@ describe("listPlatforms", () => {
     );
 
     await expect(listPlatforms()).rejects.toThrow();
+  });
+});
+
+describe("admin platform API", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("creates a platform with cookie credentials and the CSRF header", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        jsonResponse(201, {
+          id: "platform-1",
+          platform: "x",
+          displayName: "Main X",
+          externalAccountId: "account-1",
+          externalAccountHandle: "@echo.test",
+          enabled: true,
+          lastCheckedAt: "2026-05-12T17:00:00Z",
+          lastHealthStatus: "healthy",
+          lastHealthError: "",
+          createdAt: "2026-05-12T17:00:00Z",
+          updatedAt: "2026-05-12T17:00:00Z",
+        })
+      );
+
+    const data = await createPlatform(
+      {
+        platform: "x",
+        displayName: "Main X",
+        credentials: { accessToken: "x-token" },
+        enabled: true,
+      },
+      { csrfToken: "csrf-1" }
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8001/api/v1/platforms",
+      expect.objectContaining({
+        body: JSON.stringify({
+          platform: "x",
+          displayName: "Main X",
+          credentials: { accessToken: "x-token" },
+          enabled: true,
+        }),
+        credentials: "include",
+        method: "POST",
+      })
+    );
+    const init = fetchMock.mock.calls[0]?.[1];
+    const headers = new Headers(init?.headers);
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("X-Echo-CSRF-Token")).toBe("csrf-1");
+    expect(headers.has("Authorization")).toBe(false);
+    expect(data.accountHandle).toBe("@echo.test");
   });
 });

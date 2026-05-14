@@ -1,12 +1,33 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  type AdminSession,
+  getAdminSession,
+  loginAdminSession,
+  logoutAdminSession,
+} from "@/api/adminSession";
+import {
+  createPlatform,
   type PlatformConnection,
   listPlatforms,
 } from "@/api/platforms";
 import { PlatformsPage } from "@/pages/PlatformsPage";
+
+vi.mock("@/api/adminSession", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/api/adminSession")>(
+      "@/api/adminSession"
+    );
+  return {
+    ...actual,
+    getAdminSession: vi.fn(),
+    loginAdminSession: vi.fn(),
+    logoutAdminSession: vi.fn(),
+  };
+});
 
 vi.mock("@/api/platforms", async () => {
   const actual =
@@ -16,12 +37,25 @@ vi.mock("@/api/platforms", async () => {
   return {
     ...actual,
     listPlatforms: vi.fn(),
+    createPlatform: vi.fn(),
   };
 });
 
+const getAdminSessionMock = vi.mocked(getAdminSession);
+const loginAdminSessionMock = vi.mocked(loginAdminSession);
+const logoutAdminSessionMock = vi.mocked(logoutAdminSession);
 const listPlatformsMock = vi.mocked(listPlatforms);
+const createPlatformMock = vi.mocked(createPlatform);
 
 describe("PlatformsPage", () => {
+  beforeEach(() => {
+    getAdminSessionMock.mockResolvedValue(unauthenticatedSession);
+    loginAdminSessionMock.mockResolvedValue(authenticatedSession);
+    logoutAdminSessionMock.mockResolvedValue(undefined);
+    listPlatformsMock.mockResolvedValue(platformsResponse([]));
+    createPlatformMock.mockResolvedValue(xPlatform);
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });
@@ -34,6 +68,10 @@ describe("PlatformsPage", () => {
     expect(
       screen.getByRole("status", { name: "Loading platforms" })
     ).toBeInTheDocument();
+    expect(screen.getByLabelText("Admin token")).toHaveAttribute(
+      "type",
+      "password"
+    );
   });
 
   it("renders connected platform health", async () => {
@@ -98,7 +136,66 @@ describe("PlatformsPage", () => {
       })
     ).toBeInTheDocument();
   });
+
+  it("unlocks the add form and creates an X platform connection", async () => {
+    const user = userEvent.setup();
+    listPlatformsMock.mockResolvedValue(platformsResponse([]));
+
+    renderWithQueryClient(<PlatformsPage />);
+
+    await user.type(screen.getByLabelText("Admin token"), "secret");
+    await user.click(screen.getByRole("button", { name: "Unlock" }));
+
+    await waitFor(() => {
+      expect(loginAdminSessionMock).toHaveBeenCalledWith("secret");
+    });
+
+    await user.clear(await screen.findByLabelText("Display name"));
+    await user.type(screen.getByLabelText("Display name"), "Echo X");
+    await user.type(screen.getByLabelText("X access token"), "x-token");
+    await user.click(screen.getByRole("button", { name: "Add platform" }));
+
+    await waitFor(() => {
+      expect(createPlatformMock).toHaveBeenCalledWith(
+        {
+          platform: "x",
+          displayName: "Echo X",
+          credentials: { accessToken: "x-token" },
+          enabled: true,
+        },
+        { csrfToken: "csrf-1" }
+      );
+    });
+  });
+
+  it("does not leak platform credential validation errors", async () => {
+    getAdminSessionMock.mockResolvedValue(authenticatedSession);
+    createPlatformMock.mockRejectedValue(new Error("raw access token invalid"));
+    const user = userEvent.setup();
+
+    renderWithQueryClient(<PlatformsPage />);
+
+    await user.type(await screen.findByLabelText("X access token"), "bad-token");
+    await user.click(screen.getByRole("button", { name: "Add platform" }));
+
+    expect(
+      await screen.findByText("Echo could not add the platform.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/raw access token/i)).not.toBeInTheDocument();
+  });
 });
+
+const unauthenticatedSession: AdminSession = {
+  authenticated: false,
+  csrfToken: "",
+  expiresAt: "",
+};
+
+const authenticatedSession: AdminSession = {
+  authenticated: true,
+  csrfToken: "csrf-1",
+  expiresAt: "2026-05-15T00:00:00Z",
+};
 
 const xPlatform: PlatformConnection = {
   id: "platform-1",

@@ -50,7 +50,7 @@ src/
 
 - `/` — dashboard with API health and platform status summary
 - `/posts` — post history with admin-session publishing and deletion controls
-- `/platforms` — connected platform status and connection health
+- `/platforms` — connected platform status, connection health, and admin-session platform creation
 
 ## Design
 

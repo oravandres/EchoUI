@@ -1,7 +1,9 @@
 import { z } from "zod";
-import { fetchJson } from "@/api/client";
+import { fetchJson, postJson } from "@/api/client";
 
-const API_PREFIX = "/api/v1/platforms/status";
+const STATUS_API_PREFIX = "/api/v1/platforms/status";
+const ADMIN_API_PREFIX = "/api/v1/platforms";
+const ADMIN_CSRF_HEADER = "X-Echo-CSRF-Token";
 
 const platformStatusSchema = z.enum(["healthy", "unhealthy", "unknown"]);
 
@@ -27,6 +29,34 @@ const platformsResponseSchema = z.object({
   data: z.array(platformConnectionSchema),
 });
 
+const adminPlatformConnectionSchema = z
+  .object({
+    id: z.string(),
+    platform: z.string(),
+    displayName: z.string(),
+    externalAccountHandle: z
+      .string()
+      .nullable()
+      .optional()
+      .transform((value) => value ?? ""),
+    enabled: z.boolean(),
+    lastCheckedAt: z
+      .string()
+      .nullable()
+      .optional()
+      .transform((value) => value ?? null),
+    lastHealthStatus: platformStatusSchema,
+  })
+  .transform((value) => ({
+    id: value.id,
+    platform: value.platform,
+    displayName: value.displayName,
+    accountHandle: value.externalAccountHandle,
+    enabled: value.enabled,
+    lastCheckedAt: value.lastCheckedAt,
+    lastHealthStatus: value.lastHealthStatus,
+  }));
+
 export type PlatformStatus = z.infer<typeof platformStatusSchema>;
 export type PlatformConnection = z.infer<typeof platformConnectionSchema>;
 export type PlatformsResponse = z.infer<typeof platformsResponseSchema>;
@@ -36,11 +66,40 @@ export type ListPlatformsParams = {
   signal?: AbortSignal;
 };
 
+export type AdminPlatformParams = {
+  csrfToken: string;
+  signal?: AbortSignal;
+};
+
+export type CreatePlatformInput = {
+  platform: "x";
+  displayName: string;
+  credentials: {
+    accessToken: string;
+  };
+  enabled: boolean;
+};
+
 export async function listPlatforms(
   params: ListPlatformsParams = {}
 ): Promise<PlatformsResponse> {
-  const data = await fetchJson<unknown>(API_PREFIX, {
+  const data = await fetchJson<unknown>(STATUS_API_PREFIX, {
     signal: params.signal,
   });
   return platformsResponseSchema.parse(data);
+}
+
+export async function createPlatform(
+  input: CreatePlatformInput,
+  params: AdminPlatformParams
+): Promise<PlatformConnection> {
+  const headers = new Headers();
+  headers.set(ADMIN_CSRF_HEADER, params.csrfToken);
+
+  const data = await postJson<unknown>(ADMIN_API_PREFIX, input, {
+    credentials: "include",
+    headers,
+    signal: params.signal,
+  });
+  return adminPlatformConnectionSchema.parse(data);
 }
