@@ -125,7 +125,7 @@ unset, preventing accidental deploys with a dangling API reference.
 | Phase | Scope | Status |
 |-------|-------|--------|
 | ~~Phase 1~~ | Project skeleton: Vite + React + TypeScript, design system, layout, health check | ✅ Done |
-| ~~Phase 2~~ | Platform status page: list connected platforms, connection health | ✅ Done |
+| ~~Phase 2~~ | Platform status page: list connected platforms, connection health, create platform connections | ✅ Done |
 | ~~Phase 3~~ | Post composer: create and publish posts to multiple platforms | ✅ Done — browser admin sessions unlock publishing without bundling admin tokens |
 | Phase 4 | Post list: view published posts, status, engagement | Partially started — post list and delete controls are present; engagement data remains future backend scope |
 | Phase 5 | Statistics dashboard: charts, engagement metrics, trends | Planned |
@@ -140,7 +140,7 @@ unset, preventing accidental deploys with a dangling API reference.
 | `/` | Dashboard | Stats overview, API health, recent activity |
 | `/posts` | Posts | Post history, admin-session composer, and delete controls |
 | `/posts/{id}` | Post Detail | Post content, platform status, engagement |
-| `/platforms` | Platforms | Connected accounts, health status |
+| `/platforms` | Platforms | Connected accounts, health status, admin-session platform creation |
 | `/stats` | Statistics | Engagement charts, trends, analytics |
 
 ---

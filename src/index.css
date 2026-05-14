@@ -360,6 +360,11 @@ a:hover {
   padding: var(--space-2xl);
 }
 
+.platform-admin-panel {
+  padding: var(--space-2xl);
+  margin-bottom: var(--space-lg);
+}
+
 .section-title {
   font-size: 1.2rem;
   font-weight: 700;
@@ -479,6 +484,39 @@ a:hover {
 
 .platform-skeleton + .platform-skeleton {
   margin-top: var(--space-md);
+}
+
+.platform-form {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.platform-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-md);
+}
+
+.platform-form-field {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.platform-select {
+  min-width: 0;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  padding: var(--space-sm) var(--space-md);
+  font: inherit;
+}
+
+.form-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--text-secondary);
 }
 
 /* ── Posts ───────────────────────────────────────────────── */
