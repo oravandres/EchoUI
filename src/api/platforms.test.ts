@@ -13,46 +13,42 @@ describe("listPlatforms", () => {
     vi.restoreAllMocks();
   });
 
-  it("requests the platforms endpoint with pagination and parses the response", async () => {
+  it("requests the public platform status endpoint and parses the response", async () => {
     const signal = new AbortController().signal;
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(
         jsonResponse(200, {
-          items: [
+          data: [
             {
               id: "platform-1",
-              platform: "bluesky",
-              display_name: "Bluesky",
-              account_handle: "@echo.test",
-              status: "healthy",
-              last_checked_at: "2026-05-12T17:00:00Z",
-              message: null,
+              platform: "x",
+              displayName: "Main X",
+              accountHandle: "@echo.test",
+              enabled: true,
+              lastCheckedAt: "2026-05-12T17:00:00Z",
+              lastHealthStatus: "healthy",
             },
           ],
-          total: 1,
-          limit: 5,
-          offset: 10,
         })
       );
 
-    const data = await listPlatforms({ limit: 5, offset: 10, signal });
+    const data = await listPlatforms({ signal });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:8001/api/v1/platforms?limit=5&offset=10",
+      "http://localhost:8001/api/v1/platforms/status",
       expect.objectContaining({ signal })
     );
-    expect(data.items[0]?.status).toBe("healthy");
-    expect(data.total).toBe(1);
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(new Headers(init?.headers).has("Authorization")).toBe(false);
+    expect(data.data[0]?.lastHealthStatus).toBe("healthy");
+    expect(data.data[0]?.displayName).toBe("Main X");
   });
 
-  it("rejects responses that do not match the provisional platform contract", async () => {
+  it("rejects responses that do not match the public platform status contract", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse(200, {
-        items: [{ id: "platform-1", status: "paused" }],
-        total: 1,
-        limit: 20,
-        offset: 0,
+        data: [{ id: "platform-1", lastHealthStatus: "paused" }],
       })
     );
 

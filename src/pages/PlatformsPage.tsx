@@ -8,8 +8,7 @@ import {
 
 const statusLabels: Record<PlatformStatus, string> = {
   healthy: "Healthy",
-  degraded: "Degraded",
-  disconnected: "Disconnected",
+  unhealthy: "Unhealthy",
   unknown: "Unknown",
 };
 
@@ -20,7 +19,7 @@ export function PlatformsPage() {
     refetchInterval: 30_000,
   });
 
-  const platforms = platformsQuery.data?.items;
+  const platforms = platformsQuery.data?.data;
   const hasData = platforms !== undefined;
   const refreshError = platformsQuery.isError && hasData;
 
@@ -60,7 +59,7 @@ export function PlatformsPage() {
             Platform status is unavailable
           </h2>
           <p className="section-copy" role="alert">
-            Echo could not load platform connections. Try again after the API is
+            Echo could not load platform status. Try again after the API is
             available.
           </p>
           {platformsQuery.error instanceof ApiError &&
@@ -95,35 +94,31 @@ export function PlatformsPage() {
 }
 
 function PlatformCard({ platform }: { platform: PlatformConnection }) {
-  const statusLabel = statusLabels[platform.status];
-  const checkedAt = platform.last_checked_at
-    ? formatCheckedAt(platform.last_checked_at)
+  const status = getDisplayStatus(platform);
+  const checkedAt = platform.lastCheckedAt
+    ? formatCheckedAt(platform.lastCheckedAt)
     : null;
   return (
     <li className="platform-card glass">
       <div className="platform-card-header">
         <div>
-          <h2 className="platform-name">{platform.display_name}</h2>
+          <h2 className="platform-name">{platform.displayName}</h2>
           <p className="platform-meta">
             {platform.platform}
-            {platform.account_handle ? ` - ${platform.account_handle}` : ""}
+            {platform.accountHandle ? ` - ${platform.accountHandle}` : ""}
           </p>
         </div>
-        <span className={`status-badge status-badge-${platform.status}`}>
-          {statusLabel}
+        <span className={`status-badge status-badge-${status.className}`}>
+          {status.label}
         </span>
       </div>
 
-      {platform.message ? (
-        <p className="platform-message">{platform.message}</p>
-      ) : null}
-
       <p className="platform-checked">
         Last checked{" "}
-        {!platform.last_checked_at ? (
+        {!platform.lastCheckedAt ? (
           "not yet"
         ) : checkedAt ? (
-          <time dateTime={platform.last_checked_at}>
+          <time dateTime={platform.lastCheckedAt}>
             {checkedAt}
           </time>
         ) : (
@@ -132,6 +127,19 @@ function PlatformCard({ platform }: { platform: PlatformConnection }) {
       </p>
     </li>
   );
+}
+
+function getDisplayStatus(platform: PlatformConnection): {
+  label: string;
+  className: PlatformStatus | "disabled";
+} {
+  if (!platform.enabled) {
+    return { label: "Disabled", className: "disabled" };
+  }
+  return {
+    label: statusLabels[platform.lastHealthStatus],
+    className: platform.lastHealthStatus,
+  };
 }
 
 function formatCheckedAt(value: string): string | null {

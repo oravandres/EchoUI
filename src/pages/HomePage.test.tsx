@@ -25,10 +25,26 @@ describe("HomePage", () => {
   it("shows the platform count when the platforms endpoint responds", async () => {
     fetchHealthMock.mockResolvedValue({ status: "healthy" });
     listPlatformsMock.mockResolvedValue({
-      items: [],
-      total: 2,
-      limit: 1,
-      offset: 0,
+      data: [
+        {
+          id: "platform-1",
+          platform: "x",
+          displayName: "Main X",
+          accountHandle: "@echo.test",
+          enabled: true,
+          lastCheckedAt: null,
+          lastHealthStatus: "healthy",
+        },
+        {
+          id: "platform-2",
+          platform: "x",
+          displayName: "Backup X",
+          accountHandle: "@echo.backup",
+          enabled: true,
+          lastCheckedAt: null,
+          lastHealthStatus: "unknown",
+        },
+      ],
     });
 
     renderWithQueryClient(<HomePage />);
@@ -36,7 +52,7 @@ describe("HomePage", () => {
     expect(await screen.findByText("2 connected")).toBeInTheDocument();
     expect(fetchHealthMock).toHaveBeenCalledWith(expect.any(AbortSignal));
     expect(listPlatformsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 1, signal: expect.any(AbortSignal) })
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
     );
   });
 
