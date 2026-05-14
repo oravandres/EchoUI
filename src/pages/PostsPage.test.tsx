@@ -1,9 +1,41 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { type Post, listPosts } from "@/api/posts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  type AdminSession,
+  getAdminSession,
+  loginAdminSession,
+  logoutAdminSession,
+} from "@/api/adminSession";
+import { type PlatformConnection, listPlatforms } from "@/api/platforms";
+import { type Post, createPosts, deletePost, listPosts } from "@/api/posts";
 import { PostsPage } from "@/pages/PostsPage";
+
+vi.mock("@/api/adminSession", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/api/adminSession")>(
+      "@/api/adminSession"
+    );
+  return {
+    ...actual,
+    getAdminSession: vi.fn(),
+    loginAdminSession: vi.fn(),
+    logoutAdminSession: vi.fn(),
+  };
+});
+
+vi.mock("@/api/platforms", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/api/platforms")>(
+      "@/api/platforms"
+    );
+  return {
+    ...actual,
+    listPlatforms: vi.fn(),
+  };
+});
 
 vi.mock("@/api/posts", async () => {
   const actual =
@@ -11,17 +43,35 @@ vi.mock("@/api/posts", async () => {
   return {
     ...actual,
     listPosts: vi.fn(),
+    createPosts: vi.fn(),
+    deletePost: vi.fn(),
   };
 });
 
+const getAdminSessionMock = vi.mocked(getAdminSession);
+const loginAdminSessionMock = vi.mocked(loginAdminSession);
+const logoutAdminSessionMock = vi.mocked(logoutAdminSession);
+const listPlatformsMock = vi.mocked(listPlatforms);
 const listPostsMock = vi.mocked(listPosts);
+const createPostsMock = vi.mocked(createPosts);
+const deletePostMock = vi.mocked(deletePost);
 
 describe("PostsPage", () => {
+  beforeEach(() => {
+    getAdminSessionMock.mockResolvedValue(unauthenticatedSession);
+    loginAdminSessionMock.mockResolvedValue(authenticatedSession);
+    logoutAdminSessionMock.mockResolvedValue(undefined);
+    listPlatformsMock.mockResolvedValue(platformsResponse([xPlatform]));
+    listPostsMock.mockResolvedValue(postsResponse([]));
+    createPostsMock.mockResolvedValue(postsResponse([publishedPost]));
+    deletePostMock.mockResolvedValue(undefined);
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it("renders an accessible loading state and disabled composer", () => {
+  it("renders an accessible loading state and locked composer", () => {
     listPostsMock.mockReturnValue(new Promise(() => {}));
 
     renderWithQueryClient(<PostsPage />);
@@ -31,11 +81,11 @@ describe("PostsPage", () => {
     ).toBeInTheDocument();
     const composer = screen.getByRole("region", { name: "Compose" });
     expect(
-      within(composer).getByRole("textbox", { name: "Post text" })
-    ).toBeDisabled();
+      within(composer).getByLabelText("Admin token")
+    ).toHaveAttribute("type", "password");
     expect(
-      within(composer).getByText("Publishing requires admin session support.")
-    ).toBeInTheDocument();
+      within(composer).getByRole("button", { name: "Unlock" })
+    ).toBeDisabled();
   });
 
   it("renders persisted posts", async () => {
@@ -85,7 +135,67 @@ describe("PostsPage", () => {
     expect(
       await screen.findByRole("heading", { name: "Posts are unavailable" })
     ).toBeInTheDocument();
-    expect(screen.queryByText(/admin token/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("admin token leaked")).not.toBeInTheDocument();
+  });
+
+  it("unlocks the composer and publishes through the admin session", async () => {
+    const user = userEvent.setup();
+    listPostsMock.mockResolvedValue(postsResponse([]));
+
+    renderWithQueryClient(<PostsPage />);
+
+    await user.type(screen.getByLabelText("Admin token"), "secret");
+    await user.click(screen.getByRole("button", { name: "Unlock" }));
+
+    await waitFor(() => {
+      expect(loginAdminSessionMock).toHaveBeenCalledWith("secret");
+    });
+    const textarea = await screen.findByRole("textbox", { name: "Post text" });
+    await user.type(textarea, "new post");
+    await user.click(screen.getByRole("button", { name: "Publish" }));
+
+    await waitFor(() => {
+      expect(createPostsMock).toHaveBeenCalledWith(
+        { platformConnectionIds: ["conn-1"], text: "new post" },
+        { csrfToken: "csrf-1" }
+      );
+    });
+  });
+
+  it("keeps publishing disabled when no enabled platforms are available", async () => {
+    getAdminSessionMock.mockResolvedValue(authenticatedSession);
+    listPlatformsMock.mockResolvedValue(
+      platformsResponse([{ ...xPlatform, enabled: false }])
+    );
+    const user = userEvent.setup();
+
+    renderWithQueryClient(<PostsPage />);
+
+    const textarea = await screen.findByRole("textbox", { name: "Post text" });
+    await user.type(textarea, "new post");
+
+    expect(
+      screen.getByText("No enabled platforms available.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
+  });
+
+  it("deletes posts through the admin session", async () => {
+    getAdminSessionMock.mockResolvedValue(authenticatedSession);
+    listPostsMock.mockResolvedValue(postsResponse([publishedPost]));
+    const user = userEvent.setup();
+
+    renderWithQueryClient(<PostsPage />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Delete post post-1" })
+    );
+
+    await waitFor(() => {
+      expect(deletePostMock).toHaveBeenCalledWith("post-1", {
+        csrfToken: "csrf-1",
+      });
+    });
   });
 
   it("keeps cached posts visible when a refresh fails", async () => {
@@ -104,6 +214,28 @@ describe("PostsPage", () => {
   });
 });
 
+const unauthenticatedSession: AdminSession = {
+  authenticated: false,
+  csrfToken: "",
+  expiresAt: "",
+};
+
+const authenticatedSession: AdminSession = {
+  authenticated: true,
+  csrfToken: "csrf-1",
+  expiresAt: "2026-05-15T00:00:00Z",
+};
+
+const xPlatform: PlatformConnection = {
+  id: "conn-1",
+  platform: "x",
+  displayName: "Main X",
+  accountHandle: "@echo",
+  enabled: true,
+  lastCheckedAt: "2026-05-14T12:00:00Z",
+  lastHealthStatus: "healthy",
+};
+
 const publishedPost: Post = {
   id: "post-1",
   platformConnectionId: "conn-1",
@@ -118,6 +250,12 @@ const publishedPost: Post = {
 };
 
 function postsResponse(items: Post[]) {
+  return {
+    data: items,
+  };
+}
+
+function platformsResponse(items: PlatformConnection[]) {
   return {
     data: items,
   };

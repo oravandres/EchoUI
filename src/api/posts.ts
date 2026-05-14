@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { fetchJson } from "@/api/client";
+import { fetchJson, postJson } from "@/api/client";
 
 const API_PREFIX = "/api/v1/posts";
+const ADMIN_CSRF_HEADER = "X-Echo-CSRF-Token";
 
 const postStatusSchema = z.enum(["pending", "published", "failed", "deleted"]);
 
@@ -41,6 +42,16 @@ export type ListPostsParams = {
   signal?: AbortSignal;
 };
 
+export type AdminPostParams = {
+  csrfToken: string;
+  signal?: AbortSignal;
+};
+
+export type CreatePostsInput = {
+  platformConnectionIds: string[];
+  text: string;
+};
+
 export async function listPosts(
   params: ListPostsParams = {}
 ): Promise<PostsResponse> {
@@ -48,4 +59,34 @@ export async function listPosts(
     signal: params.signal,
   });
   return postsResponseSchema.parse(data);
+}
+
+export async function createPosts(
+  input: CreatePostsInput,
+  params: AdminPostParams
+): Promise<PostsResponse> {
+  const headers = new Headers();
+  headers.set(ADMIN_CSRF_HEADER, params.csrfToken);
+
+  const data = await postJson<unknown>(API_PREFIX, input, {
+    credentials: "include",
+    headers,
+    signal: params.signal,
+  });
+  return postsResponseSchema.parse(data);
+}
+
+export async function deletePost(
+  id: string,
+  params: AdminPostParams
+): Promise<void> {
+  const headers = new Headers();
+  headers.set(ADMIN_CSRF_HEADER, params.csrfToken);
+
+  await fetchJson<void>(`${API_PREFIX}/${encodeURIComponent(id)}`, {
+    credentials: "include",
+    headers,
+    method: "DELETE",
+    signal: params.signal,
+  });
 }
