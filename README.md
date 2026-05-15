@@ -54,13 +54,19 @@ src/
 - `/platforms` — connected platform status, connection health, and admin-session platform management
 - `/stats` — aggregate post, platform, latest engagement, and engagement trend summary
 
+The post composer renders a selected-platform preview before publish so admins
+can review copy and platform targets without sending a request.
+
 Admin-session actions show dismissible success and failure notifications. Failure
 messages use stable UI copy and include an Echo request ID when the API provides
 one.
 
+The app shell includes a persisted dark/light theme toggle stored in the
+browser, so the selected theme survives reloads.
+
 ## Design
 
-- **Dark theme** with glassmorphism effects
+- **Dark and light themes** with glassmorphism effects
 - **Teal-to-indigo** gradient accent palette
 - **Inter** typeface from Google Fonts
 - Micro-animations and smooth transitions
