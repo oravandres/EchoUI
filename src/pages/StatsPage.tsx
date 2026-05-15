@@ -262,6 +262,7 @@ function EngagementHistoryPanel({
   const items = history?.data.items ?? [];
   const hasHistory = items.length > 0;
   const cachedRefreshError = isError && history !== undefined;
+  const emptyHistory = history !== undefined && items.length === 0 && !isError;
 
   return (
     <section className="stats-panel glass" aria-labelledby="engagement-history-title">
@@ -298,6 +299,10 @@ function EngagementHistoryPanel({
           Engagement history is unavailable.
           <RequestId error={error} />
         </p>
+      ) : null}
+
+      {emptyHistory ? (
+        <p className="section-copy">No engagement history has been stored yet.</p>
       ) : null}
 
       {hasHistory ? <EngagementTrendChart items={items} /> : null}

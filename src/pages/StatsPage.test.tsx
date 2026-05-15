@@ -132,6 +132,22 @@ describe("StatsPage", () => {
     expect(screen.queryByText("database password leaked")).not.toBeInTheDocument();
   });
 
+  it("renders an empty state when no engagement history is stored", async () => {
+    fetchEngagementHistoryMock.mockResolvedValue({
+      data: {
+        items: [],
+        limit: 30,
+        generatedAt: "2026-05-15T10:05:00Z",
+      },
+    });
+
+    renderWithQueryClient(<StatsPage />);
+
+    expect(
+      await screen.findByText("No engagement history has been stored yet.")
+    ).toBeInTheDocument();
+  });
+
   it("keeps cached engagement history visible when history refresh fails", async () => {
     const client = createTestQueryClient();
     client.setQueryData(["stats", "summary"], statsResponse);
