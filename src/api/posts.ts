@@ -6,6 +6,16 @@ const ADMIN_CSRF_HEADER = "X-Echo-CSRF-Token";
 
 const postStatusSchema = z.enum(["pending", "published", "failed", "deleted"]);
 
+const engagementSchema = z.object({
+  likeCount: z.number(),
+  replyCount: z.number(),
+  repostCount: z.number(),
+  quoteCount: z.number(),
+  bookmarkCount: z.number(),
+  impressionCount: z.number(),
+  fetchedAt: z.string(),
+});
+
 const postSchema = z.object({
   id: z.string(),
   platformConnectionId: z.string(),
@@ -20,6 +30,7 @@ const postSchema = z.object({
     .string()
     .optional()
     .transform((value) => value ?? ""),
+  engagement: engagementSchema.optional(),
   publishedAt: z
     .string()
     .nullable()
@@ -34,6 +45,7 @@ const postsResponseSchema = z.object({
 });
 
 export type PostStatus = z.infer<typeof postStatusSchema>;
+export type Engagement = z.infer<typeof engagementSchema>;
 export type Post = z.infer<typeof postSchema>;
 export type PostsResponse = z.infer<typeof postsResponseSchema>;
 

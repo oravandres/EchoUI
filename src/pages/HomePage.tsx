@@ -17,6 +17,7 @@ export function HomePage() {
   const hasPlatformCount = platformCount !== undefined;
   const postCount = statsQuery.data?.data.posts.total;
   const hasPostCount = postCount !== undefined;
+  const engagement = statsQuery.data?.data.engagement;
 
   return (
     <div className="page-container" id="home-page">
@@ -67,7 +68,12 @@ export function HomePage() {
           <div className="stat-icon">📊</div>
           <div className="stat-content">
             <span className="stat-label">Engagement</span>
-            <span className="stat-value text-muted">Coming soon</span>
+            <span className={`stat-value ${engagement && engagement.postsMeasured > 0 ? "text-success" : statsQuery.isError ? "text-warning" : "text-muted"}`}>
+              {engagement &&
+                `${engagement.likeCount.toLocaleString()} likes`}
+              {!engagement && statsQuery.isPending && "Checking…"}
+              {!engagement && statsQuery.isError && "Unavailable"}
+            </span>
           </div>
         </div>
       </div>

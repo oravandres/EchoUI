@@ -27,6 +27,15 @@ describe("listPosts", () => {
               externalPostId: "tweet-1",
               text: "hello from Echo",
               status: "published",
+              engagement: {
+                likeCount: 10,
+                replyCount: 2,
+                repostCount: 3,
+                quoteCount: 4,
+                bookmarkCount: 5,
+                impressionCount: 600,
+                fetchedAt: "2026-05-15T09:05:00Z",
+              },
               publishedAt: "2026-05-14T12:00:00Z",
               createdAt: "2026-05-14T12:00:00Z",
               updatedAt: "2026-05-14T12:00:00Z",
@@ -45,6 +54,7 @@ describe("listPosts", () => {
     expect(new Headers(init?.headers).has("Authorization")).toBe(false);
     expect(data.data[0]?.status).toBe("published");
     expect(data.data[0]?.text).toBe("hello from Echo");
+    expect(data.data[0]?.engagement?.repostCount).toBe(3);
   });
 
   it("rejects responses that do not match the posts contract", async () => {
@@ -75,6 +85,15 @@ describe("getPost", () => {
           externalPostId: "tweet-1",
           text: "hello from Echo",
           status: "published",
+          engagement: {
+            likeCount: 10,
+            replyCount: 2,
+            repostCount: 3,
+            quoteCount: 4,
+            bookmarkCount: 5,
+            impressionCount: 600,
+            fetchedAt: "2026-05-15T09:05:00Z",
+          },
           publishedAt: "2026-05-14T12:00:00Z",
           createdAt: "2026-05-14T12:00:00Z",
           updatedAt: "2026-05-14T12:00:00Z",
@@ -91,6 +110,7 @@ describe("getPost", () => {
     expect(new Headers(init?.headers).has("Authorization")).toBe(false);
     expect(data.id).toBe("post/1");
     expect(data.externalPostId).toBe("tweet-1");
+    expect(data.engagement?.impressionCount).toBe(600);
   });
 });
 

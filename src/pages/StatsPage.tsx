@@ -1,21 +1,60 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type AdminSession,
+  getAdminSession,
+} from "@/api/adminSession";
 import { ApiError } from "@/api/client";
 import {
   type PlatformStats,
   type StatsSummary,
   fetchStats,
+  refreshStats,
 } from "@/api/stats";
 
+const lockedAdminSession: AdminSession = {
+  authenticated: false,
+  csrfToken: "",
+  expiresAt: "",
+};
+
 export function StatsPage() {
+  const queryClient = useQueryClient();
   const statsQuery = useQuery({
     queryKey: ["stats", "summary"],
     queryFn: ({ signal }) => fetchStats({ signal }),
     refetchInterval: 30_000,
   });
+  const adminSessionQuery = useQuery({
+    queryKey: ["admin", "session"],
+    queryFn: ({ signal }) => getAdminSession({ signal }),
+    retry: false,
+    staleTime: 30_000,
+  });
 
   const summary = statsQuery.data?.data;
   const hasData = summary !== undefined;
   const refreshError = statsQuery.isError && hasData;
+  const adminSession = adminSessionQuery.data;
+  const isAuthenticated = adminSession?.authenticated === true;
+  const csrfToken = isAuthenticated ? adminSession.csrfToken : "";
+
+  const metricsRefreshMutation = useMutation({
+    mutationFn: () => {
+      if (csrfToken === "") {
+        throw new Error("admin session is not available");
+      }
+      return refreshStats({ csrfToken });
+    },
+    onError: (error) => {
+      if (isAdminAuthError(error)) {
+        queryClient.setQueryData(["admin", "session"], lockedAdminSession);
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["stats"] });
+      void queryClient.invalidateQueries({ queryKey: ["posts"] });
+    },
+  });
 
   return (
     <div className="page-container" id="stats-page">
@@ -24,6 +63,19 @@ export function StatsPage() {
         <p className="page-subtitle">Aggregate post and platform status</p>
       </header>
 
+      {isAuthenticated ? (
+        <div className="stats-action-row">
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={metricsRefreshMutation.isPending}
+            onClick={() => metricsRefreshMutation.mutate()}
+          >
+            {metricsRefreshMutation.isPending ? "Refreshing metrics" : "Refresh metrics"}
+          </button>
+        </div>
+      ) : null}
+
       {refreshError ? (
         <p
           className="status-banner status-banner-warning"
@@ -31,6 +83,21 @@ export function StatsPage() {
           aria-label="Could not refresh statistics. Showing last known data."
         >
           Could not refresh statistics. Showing last known data.
+        </p>
+      ) : null}
+
+      {metricsRefreshMutation.isSuccess ? (
+        <p className="status-banner status-banner-success" role="status">
+          Metric refresh completed:{" "}
+          {metricsRefreshMutation.data.data.refreshed.toLocaleString()} refreshed,{" "}
+          {metricsRefreshMutation.data.data.failed.toLocaleString()} failed.
+        </p>
+      ) : null}
+
+      {metricsRefreshMutation.isError ? (
+        <p className="status-banner status-banner-warning" role="alert">
+          Echo could not refresh metrics.
+          <RequestId error={metricsRefreshMutation.error} />
         </p>
       ) : null}
 
@@ -69,6 +136,9 @@ export function StatsPage() {
 
 function StatsSummaryView({ summary }: { summary: StatsSummary }) {
   const generatedAt = formatDate(summary.generatedAt);
+  const lastFetchedAt = summary.engagement.lastFetchedAt
+    ? formatDate(summary.engagement.lastFetchedAt)
+    : null;
 
   return (
     <>
@@ -76,7 +146,7 @@ function StatsSummaryView({ summary }: { summary: StatsSummary }) {
         <StatCard label="Posts" value={`${summary.posts.total.toLocaleString()} total`} tone="success" />
         <StatCard label="Published" value={summary.posts.published.toLocaleString()} tone="success" />
         <StatCard label="Failed" value={summary.posts.failed.toLocaleString()} tone={summary.posts.failed > 0 ? "warning" : "muted"} />
-        <StatCard label="Platforms" value={`${summary.platforms.enabled.toLocaleString()} enabled`} tone={summary.platforms.enabled > 0 ? "success" : "muted"} />
+        <StatCard label="Engagement" value={`${summary.engagement.postsMeasured.toLocaleString()} measured`} tone={summary.engagement.postsMeasured > 0 ? "success" : "muted"} />
       </div>
 
       <section className="stats-panel glass" aria-labelledby="post-stats-title">
@@ -108,6 +178,24 @@ function StatsSummaryView({ summary }: { summary: StatsSummary }) {
         <PlatformStatsView stats={summary.platforms} />
       </section>
 
+      <section className="stats-panel glass" aria-labelledby="engagement-stats-title">
+        <div className="section-header-row">
+          <h2 className="section-title" id="engagement-stats-title">
+            Engagement
+          </h2>
+          {lastFetchedAt ? (
+            <p className="section-copy">
+              Fetched <time dateTime={summary.engagement.lastFetchedAt}>{lastFetchedAt}</time>
+            </p>
+          ) : null}
+        </div>
+        {summary.engagement.postsMeasured === 0 ? (
+          <p className="section-copy">No public engagement metrics have been stored yet.</p>
+        ) : (
+          <EngagementStatsView summary={summary} />
+        )}
+      </section>
+
       <section className="stats-panel glass" aria-labelledby="platform-breakdown-title">
         <h2 className="section-title" id="platform-breakdown-title">
           By platform
@@ -122,7 +210,8 @@ function StatsSummaryView({ summary }: { summary: StatsSummary }) {
                   <h3>{item.platform}</h3>
                   <p>
                     {item.posts.total.toLocaleString()} posts,{" "}
-                    {item.connections.total.toLocaleString()} connections
+                    {item.connections.total.toLocaleString()} connections,{" "}
+                    {formatCompactNumber(item.engagement.impressionCount)} impressions
                   </p>
                 </div>
                 <span
@@ -140,6 +229,41 @@ function StatsSummaryView({ summary }: { summary: StatsSummary }) {
         )}
       </section>
     </>
+  );
+}
+
+function EngagementStatsView({ summary }: { summary: StatsSummary }) {
+  return (
+    <dl className="detail-list">
+      <div>
+        <dt>Measured posts</dt>
+        <dd>{summary.engagement.postsMeasured.toLocaleString()}</dd>
+      </div>
+      <div>
+        <dt>Likes</dt>
+        <dd>{summary.engagement.likeCount.toLocaleString()}</dd>
+      </div>
+      <div>
+        <dt>Replies</dt>
+        <dd>{summary.engagement.replyCount.toLocaleString()}</dd>
+      </div>
+      <div>
+        <dt>Reposts</dt>
+        <dd>{summary.engagement.repostCount.toLocaleString()}</dd>
+      </div>
+      <div>
+        <dt>Quotes</dt>
+        <dd>{summary.engagement.quoteCount.toLocaleString()}</dd>
+      </div>
+      <div>
+        <dt>Bookmarks</dt>
+        <dd>{summary.engagement.bookmarkCount.toLocaleString()}</dd>
+      </div>
+      <div>
+        <dt>Impressions</dt>
+        <dd>{summary.engagement.impressionCount.toLocaleString()}</dd>
+      </div>
+    </dl>
   );
 }
 
@@ -218,4 +342,27 @@ function formatDate(value: string): string | null {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function formatCompactNumber(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function RequestId({ error }: { error: unknown }) {
+  if (!(error instanceof ApiError) || !error.requestId) return null;
+  return (
+    <>
+      {" "}
+      Request ID: <code>{error.requestId}</code>
+    </>
+  );
+}
+
+function isAdminAuthError(error: unknown): boolean {
+  return (
+    error instanceof ApiError && (error.status === 401 || error.status === 403)
+  );
 }

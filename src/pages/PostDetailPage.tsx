@@ -1,7 +1,12 @@
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "@/api/client";
-import { type Post, type PostStatus, getPost } from "@/api/posts";
+import {
+  type Engagement,
+  type Post,
+  type PostStatus,
+  getPost,
+} from "@/api/posts";
 
 const statusLabels: Record<PostStatus, string> = {
   pending: "Pending",
@@ -136,12 +141,58 @@ function PostDetail({ post }: { post: Post }) {
             </dd>
           </div>
         ) : null}
+      </dl>
+
+      <section className="post-engagement-section" aria-labelledby="post-engagement-title">
+        <h3 className="section-title" id="post-engagement-title">
+          Engagement
+        </h3>
+        {post.engagement ? (
+          <EngagementDetail engagement={post.engagement} />
+        ) : (
+          <p className="section-copy">No stored public metrics yet.</p>
+        )}
+      </section>
+    </article>
+  );
+}
+
+function EngagementDetail({ engagement }: { engagement: Engagement }) {
+  const fetchedAt = formatDate(engagement.fetchedAt);
+  return (
+    <>
+      <dl className="detail-list">
         <div>
-          <dt>Engagement</dt>
-          <dd>Not available yet</dd>
+          <dt>Likes</dt>
+          <dd>{engagement.likeCount.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt>Replies</dt>
+          <dd>{engagement.replyCount.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt>Reposts</dt>
+          <dd>{engagement.repostCount.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt>Quotes</dt>
+          <dd>{engagement.quoteCount.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt>Bookmarks</dt>
+          <dd>{engagement.bookmarkCount.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt>Impressions</dt>
+          <dd>{engagement.impressionCount.toLocaleString()}</dd>
         </div>
       </dl>
-    </article>
+      {fetchedAt ? (
+        <p className="section-copy post-engagement-fetched">
+          Fetched <time dateTime={engagement.fetchedAt}>{fetchedAt}</time>
+        </p>
+      ) : null}
+    </>
   );
 }
 

@@ -41,7 +41,7 @@ describe("PostDetailPage", () => {
 
     expect(await screen.findByText("hello from Echo")).toBeInTheDocument();
     expect(screen.getByText("tweet-1")).toBeInTheDocument();
-    expect(screen.getByText("Not available yet")).toBeInTheDocument();
+    expect(screen.getByText("600")).toBeInTheDocument();
     expect(getPostMock).toHaveBeenCalledWith("post-1", {
       signal: expect.any(AbortSignal),
     });
@@ -82,6 +82,15 @@ const publishedPost: Post = {
   text: "hello from Echo",
   status: "published",
   errorMessage: "",
+  engagement: {
+    likeCount: 10,
+    replyCount: 2,
+    repostCount: 3,
+    quoteCount: 4,
+    bookmarkCount: 5,
+    impressionCount: 600,
+    fetchedAt: "2026-05-15T09:05:00Z",
+  },
   publishedAt: "2026-05-14T12:00:00Z",
   createdAt: "2026-05-14T12:00:00Z",
   updatedAt: "2026-05-14T12:00:00Z",

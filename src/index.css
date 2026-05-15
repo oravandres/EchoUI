@@ -355,6 +355,12 @@ a:hover {
   border: 1px solid rgba(245, 158, 11, 0.2);
 }
 
+.status-banner-success {
+  color: var(--color-success);
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
 /* ── Platforms ───────────────────────────────────────────── */
 .platforms-panel {
   padding: var(--space-2xl);
@@ -781,6 +787,32 @@ a:hover {
   margin-top: 2px;
 }
 
+.post-engagement-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--surface-glass-border);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.post-engagement-inline div {
+  min-width: 84px;
+}
+
+.post-engagement-inline dt {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.post-engagement-inline dd {
+  margin-top: 2px;
+  color: var(--text-primary);
+}
+
 .status-badge-post-published {
   color: var(--color-success);
   background: rgba(16, 185, 129, 0.1);
@@ -844,7 +876,23 @@ a:hover {
   overflow-wrap: anywhere;
 }
 
+.post-engagement-section {
+  margin-top: var(--space-2xl);
+  padding-top: var(--space-xl);
+  border-top: 1px solid var(--surface-glass-border);
+}
+
+.post-engagement-fetched {
+  margin-top: var(--space-lg);
+}
+
 /* ── Statistics ──────────────────────────────────────────── */
+.stats-action-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-lg);
+}
+
 .stats-panel {
   padding: var(--space-2xl);
   margin-bottom: var(--space-lg);
