@@ -18,6 +18,7 @@ import {
   deletePost,
   listPosts,
 } from "@/api/posts";
+import { useToasts } from "@/components/ToastContext";
 
 const statusLabels: Record<PostStatus, string> = {
   pending: "Pending",
@@ -34,6 +35,7 @@ const lockedAdminSession: AdminSession = {
 
 export function PostsPage() {
   const queryClient = useQueryClient();
+  const { notify } = useToasts();
   const [loginToken, setLoginToken] = useState("");
   const [postText, setPostText] = useState("");
   const [selectedPlatformIds, setSelectedPlatformIds] = useState<string[]>([]);
@@ -86,6 +88,14 @@ export function PostsPage() {
     onSuccess: (session) => {
       queryClient.setQueryData(["admin", "session"], session);
       setLoginToken("");
+      notify({ tone: "success", title: "Admin session unlocked." });
+    },
+    onError: (error) => {
+      notify({
+        tone: "warning",
+        title: "Admin unlock failed.",
+        detail: requestIdDetail(error),
+      });
     },
   });
 
@@ -100,6 +110,7 @@ export function PostsPage() {
       setPostText("");
       setSelectedPlatformIds([]);
       setPlatformSelectionTouched(false);
+      notify({ tone: "success", title: "Admin session locked." });
     },
   });
 
@@ -114,10 +125,20 @@ export function PostsPage() {
       if (isAdminAuthError(error)) {
         queryClient.setQueryData(["admin", "session"], lockedAdminSession);
       }
+      notify({
+        tone: "warning",
+        title: "Post publish failed.",
+        detail: requestIdDetail(error),
+      });
     },
     onSuccess: () => {
       setPostText("");
       void queryClient.invalidateQueries({ queryKey: ["posts", "list"] });
+      notify({
+        tone: "success",
+        title: "Post request completed.",
+        detail: "Refreshing posts.",
+      });
     },
   });
 
@@ -132,9 +153,15 @@ export function PostsPage() {
       if (isAdminAuthError(error)) {
         queryClient.setQueryData(["admin", "session"], lockedAdminSession);
       }
+      notify({
+        tone: "warning",
+        title: "Post deletion failed.",
+        detail: requestIdDetail(error),
+      });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["posts", "list"] });
+      notify({ tone: "success", title: "Post deleted." });
     },
   });
 
@@ -628,6 +655,11 @@ function RequestId({ error }: { error: unknown }) {
       Request ID: <code>{error.requestId}</code>
     </>
   );
+}
+
+function requestIdDetail(error: unknown): string | undefined {
+  if (!(error instanceof ApiError) || !error.requestId) return undefined;
+  return `Request ID: ${error.requestId}`;
 }
 
 function isAdminAuthError(error: unknown): boolean {

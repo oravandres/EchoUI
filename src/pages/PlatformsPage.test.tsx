@@ -16,6 +16,7 @@ import {
   listPlatforms,
   updatePlatform,
 } from "@/api/platforms";
+import { ToastProvider } from "@/components/ToastProvider";
 import { PlatformsPage } from "@/pages/PlatformsPage";
 import { ApiError } from "@/api/client";
 
@@ -178,6 +179,9 @@ describe("PlatformsPage", () => {
         { csrfToken: "csrf-1" }
       );
     });
+    expect(
+      await screen.findByText("Platform connection added.")
+    ).toBeInTheDocument();
   });
 
   it("shows management controls after admin unlock", async () => {
@@ -230,6 +234,7 @@ describe("PlatformsPage", () => {
     });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["platforms"] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["stats"] });
+    expect(await screen.findByText("Platform updated.")).toBeInTheDocument();
   });
 
   it("updates enabled state and rotates credentials only when requested", async () => {
@@ -289,6 +294,7 @@ describe("PlatformsPage", () => {
         csrfToken: "csrf-1",
       });
     });
+    expect(await screen.findByText("Platform deleted.")).toBeInTheDocument();
   });
 
   it("does not leak update errors and clears credential input", async () => {
@@ -305,8 +311,8 @@ describe("PlatformsPage", () => {
     await user.click(within(manageForm).getByRole("button", { name: "Save changes" }));
 
     expect(
-      await screen.findByText("Echo could not update the platform.")
-    ).toBeInTheDocument();
+      await screen.findAllByText("Echo could not update the platform.")
+    ).not.toHaveLength(0);
     expect(screen.queryByText(/raw access token/i)).not.toBeInTheDocument();
     expect(tokenInput).toHaveValue("");
   });
@@ -332,8 +338,8 @@ describe("PlatformsPage", () => {
     );
 
     expect(
-      await screen.findByText("Echo could not delete the platform.")
-    ).toBeInTheDocument();
+      await screen.findAllByText("Echo could not delete the platform.")
+    ).not.toHaveLength(0);
     expect(screen.queryByText(/foreign key/i)).not.toBeInTheDocument();
   });
 
@@ -354,8 +360,8 @@ describe("PlatformsPage", () => {
     await user.click(within(manageForm).getByRole("button", { name: "Save changes" }));
 
     expect(
-      await screen.findByText("Echo could not update the platform.")
-    ).toBeInTheDocument();
+      await screen.findAllByText("Echo could not update the platform.")
+    ).not.toHaveLength(0);
     await waitFor(() => {
       expect(
         screen.queryByRole("form", { name: "Manage Main X" })
@@ -375,8 +381,8 @@ describe("PlatformsPage", () => {
     await user.click(screen.getByRole("button", { name: "Add platform" }));
 
     expect(
-      await screen.findByText("Echo could not add the platform.")
-    ).toBeInTheDocument();
+      await screen.findAllByText("Echo could not add the platform.")
+    ).not.toHaveLength(0);
     expect(screen.queryByText(/raw access token/i)).not.toBeInTheDocument();
   });
 });
@@ -420,6 +426,8 @@ function renderWithQueryClient(
   client = createTestQueryClient()
 ) {
   return render(
-    <QueryClientProvider client={client}>{ui}</QueryClientProvider>
+    <QueryClientProvider client={client}>
+      <ToastProvider>{ui}</ToastProvider>
+    </QueryClientProvider>
   );
 }

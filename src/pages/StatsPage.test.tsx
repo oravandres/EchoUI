@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAdminSession } from "@/api/adminSession";
+import { ApiError } from "@/api/client";
 import {
   fetchEngagementHistory,
   fetchStats,
@@ -11,6 +12,7 @@ import {
   type EngagementHistoryResponse,
   type StatsResponse,
 } from "@/api/stats";
+import { ToastProvider } from "@/components/ToastProvider";
 import { StatsPage } from "@/pages/StatsPage";
 
 vi.mock("@/api/stats", () => ({
@@ -93,6 +95,31 @@ describe("StatsPage", () => {
     expect(
       await screen.findByText("Metric refresh completed:", { exact: false })
     ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Metrics refresh completed.")
+    ).toBeInTheDocument();
+  });
+
+  it("shows stable notification copy when metrics refresh fails", async () => {
+    const user = userEvent.setup();
+    getAdminSessionMock.mockResolvedValue({
+      authenticated: true,
+      csrfToken: "csrf-1",
+      expiresAt: "2026-05-15T21:00:00Z",
+    });
+    refreshStatsMock.mockRejectedValue(
+      new ApiError("raw provider token leaked", 503, undefined, {
+        requestId: "req-refresh-1",
+      })
+    );
+
+    renderWithQueryClient(<StatsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Refresh metrics" }));
+
+    expect(await screen.findByText("Metrics refresh failed.")).toBeInTheDocument();
+    expect(await screen.findByText("Request ID: req-refresh-1")).toBeInTheDocument();
+    expect(screen.queryByText(/raw provider token/i)).not.toBeInTheDocument();
   });
 
   it("renders stable unavailable copy for an initial load error", async () => {
@@ -264,6 +291,8 @@ function createTestQueryClient() {
 
 function renderWithQueryClient(ui: ReactNode, client = createTestQueryClient()) {
   return render(
-    <QueryClientProvider client={client}>{ui}</QueryClientProvider>
+    <QueryClientProvider client={client}>
+      <ToastProvider>{ui}</ToastProvider>
+    </QueryClientProvider>
   );
 }

@@ -22,6 +22,7 @@ import {
   listPlatforms,
   updatePlatform,
 } from "@/api/platforms";
+import { useToasts } from "@/components/ToastContext";
 
 const statusLabels: Record<PlatformStatus, string> = {
   healthy: "Healthy",
@@ -42,6 +43,7 @@ function invalidatePlatformConsumers(queryClient: QueryClient) {
 
 export function PlatformsPage() {
   const queryClient = useQueryClient();
+  const { notify } = useToasts();
   const [loginToken, setLoginToken] = useState("");
   const [displayName, setDisplayName] = useState("Main X");
   const [accessToken, setAccessToken] = useState("");
@@ -71,6 +73,14 @@ export function PlatformsPage() {
     onSuccess: (session) => {
       queryClient.setQueryData(["admin", "session"], session);
       setLoginToken("");
+      notify({ tone: "success", title: "Admin session unlocked." });
+    },
+    onError: (error) => {
+      notify({
+        tone: "warning",
+        title: "Admin unlock failed.",
+        detail: requestIdDetail(error),
+      });
     },
   });
 
@@ -82,6 +92,7 @@ export function PlatformsPage() {
         lockedAdminSession
       );
       setAccessToken("");
+      notify({ tone: "success", title: "Admin session locked." });
     },
   });
 
@@ -97,10 +108,20 @@ export function PlatformsPage() {
       if (isAdminAuthError(error)) {
         queryClient.setQueryData(["admin", "session"], lockedAdminSession);
       }
+      notify({
+        tone: "warning",
+        title: "Platform creation failed.",
+        detail: requestIdDetail(error),
+      });
     },
     onSuccess: () => {
       setAccessToken("");
       invalidatePlatformConsumers(queryClient);
+      notify({
+        tone: "success",
+        title: "Platform connection added.",
+        detail: "Refreshing platform status.",
+      });
     },
   });
 
@@ -427,6 +448,7 @@ function PlatformCard({
   onAuthLocked: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { notify } = useToasts();
   const [displayName, setDisplayName] = useState(platform.displayName);
   const [enabled, setEnabled] = useState(platform.enabled);
   const [credentialToken, setCredentialToken] = useState("");
@@ -454,10 +476,20 @@ function PlatformCard({
       if (isAdminAuthError(error)) {
         onAuthLocked();
       }
+      notify({
+        tone: "warning",
+        title: "Platform update failed.",
+        detail: requestIdDetail(error),
+      });
     },
     onSuccess: () => {
       setCredentialToken("");
       invalidatePlatformConsumers(queryClient);
+      notify({
+        tone: "success",
+        title: "Platform updated.",
+        detail: "Refreshing platform status.",
+      });
     },
   });
 
@@ -473,11 +505,21 @@ function PlatformCard({
       if (isAdminAuthError(error)) {
         onAuthLocked();
       }
+      notify({
+        tone: "warning",
+        title: "Platform deletion failed.",
+        detail: requestIdDetail(error),
+      });
     },
     onSuccess: () => {
       setCredentialToken("");
       setConfirmDelete(false);
       invalidatePlatformConsumers(queryClient);
+      notify({
+        tone: "success",
+        title: "Platform deleted.",
+        detail: "Refreshing platform status.",
+      });
     },
   });
 
@@ -673,6 +715,11 @@ function RequestId({ error }: { error: unknown }) {
       Request ID: <code>{error.requestId}</code>
     </>
   );
+}
+
+function requestIdDetail(error: unknown): string | undefined {
+  if (!(error instanceof ApiError) || !error.requestId) return undefined;
+  return `Request ID: ${error.requestId}`;
 }
 
 function isAdminAuthError(error: unknown): boolean {
