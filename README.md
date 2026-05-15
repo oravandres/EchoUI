@@ -51,7 +51,7 @@ src/
 - `/` — dashboard with API health and platform status summary
 - `/posts` — post history with admin-session publishing and deletion controls
 - `/posts/:id` — post detail with persisted status and latest public engagement metrics
-- `/platforms` — connected platform status, connection health, admin-session platform management, and X OAuth connection
+- `/platforms` — connected platform status, connection health, admin-session platform management, and X/Facebook OAuth connection
 - `/stats` — aggregate post, platform, latest engagement, and engagement trend summary
 
 The post composer renders a selected-platform preview before publish so admins
@@ -61,9 +61,10 @@ Admin-session actions show dismissible success and failure notifications. Failur
 messages use stable UI copy and include an Echo request ID when the API provides
 one.
 
-The platforms page starts X account connection through Echo-owned OAuth. Manual
-X access-token entry remains available as an advanced operator fallback, but no
-provider secret or admin bearer token is bundled into EchoUI.
+The platforms page starts X account and Facebook Page connection through
+Echo-owned OAuth. Manual access-token entry remains available as an advanced
+operator fallback, but no provider secret or admin bearer token is bundled into
+EchoUI.
 
 The app shell includes a persisted dark/light theme toggle stored in the
 browser, so the selected theme survives reloads.
