@@ -45,4 +45,25 @@ describe("Layout", () => {
       screen.getByRole("heading", { name: "Posts page" })
     ).toBeInTheDocument();
   });
+
+  it("renders stats navigation and routes the stats outlet", () => {
+    render(
+      <MemoryRouter initialEntries={["/stats"]}>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route path="stats" element={<h1>Stats page</h1>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    const link = within(nav).getByRole("link", { name: /stats/i });
+
+    expect(link).toHaveAttribute("href", "/stats");
+    expect(link).toHaveClass("active");
+    expect(
+      screen.getByRole("heading", { name: "Stats page" })
+    ).toBeInTheDocument();
+  });
 });

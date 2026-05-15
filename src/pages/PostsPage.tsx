@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router";
 import {
   type AdminSession,
   getAdminSession,
@@ -532,7 +533,12 @@ function PostCard({
           <p className="post-platform">{post.platform}</p>
           <h2 className="post-title">
             <span className="sr-only">Post </span>
-            {post.id}
+            <Link
+              className="post-title-link"
+              to={`/posts/${encodeURIComponent(post.id)}`}
+            >
+              {post.id}
+            </Link>
           </h2>
         </div>
         <span className={`status-badge status-badge-post-${post.status}`}>
