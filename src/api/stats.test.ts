@@ -102,6 +102,57 @@ describe("fetchStats", () => {
 
     await expect(fetchStats()).rejects.toThrow();
   });
+
+  it("defaults missing engagement stats for rolling deploy compatibility", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, {
+        data: {
+          posts: {
+            total: 3,
+            pending: 0,
+            published: 2,
+            failed: 1,
+            deleted: 0,
+          },
+          platforms: {
+            total: 2,
+            enabled: 1,
+            disabled: 1,
+            healthy: 1,
+            unhealthy: 0,
+            unknown: 1,
+          },
+          byPlatform: [
+            {
+              platform: "x",
+              posts: {
+                total: 3,
+                pending: 0,
+                published: 2,
+                failed: 1,
+                deleted: 0,
+              },
+              connections: {
+                total: 2,
+                enabled: 1,
+                disabled: 1,
+                healthy: 1,
+                unhealthy: 0,
+                unknown: 1,
+              },
+            },
+          ],
+          generatedAt: "2026-05-15T09:00:00Z",
+        },
+      })
+    );
+
+    const data = await fetchStats();
+
+    expect(data.data.engagement.postsMeasured).toBe(0);
+    expect(data.data.engagement.impressionCount).toBe(0);
+    expect(data.data.byPlatform[0]?.engagement.likeCount).toBe(0);
+  });
 });
 
 describe("refreshStats", () => {
