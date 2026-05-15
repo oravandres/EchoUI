@@ -668,6 +668,11 @@ a:hover {
   gap: var(--space-md);
 }
 
+.platform-form-stack {
+  display: grid;
+  gap: var(--space-md);
+}
+
 .platform-form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

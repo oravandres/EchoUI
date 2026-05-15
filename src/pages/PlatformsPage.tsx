@@ -5,6 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useSearchParams } from "react-router";
 import {
   type AdminSession,
   getAdminSession,
@@ -20,6 +21,7 @@ import {
   createPlatform,
   deletePlatform,
   listPlatforms,
+  startXOAuthConnection,
   updatePlatform,
 } from "@/api/platforms";
 import { useToasts } from "@/components/ToastContext";
@@ -39,15 +41,18 @@ const lockedAdminSession: AdminSession = {
 function invalidatePlatformConsumers(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["platforms"] });
   void queryClient.invalidateQueries({ queryKey: ["stats"] });
+  void queryClient.invalidateQueries({ queryKey: ["posts"] });
 }
 
 export function PlatformsPage() {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const { notify } = useToasts();
   const [loginToken, setLoginToken] = useState("");
   const [displayName, setDisplayName] = useState("Main X");
   const [accessToken, setAccessToken] = useState("");
   const [enabled, setEnabled] = useState(true);
+  const [showManualToken, setShowManualToken] = useState(false);
 
   const platformsQuery = useQuery({
     queryKey: ["platforms", "list"],
@@ -67,6 +72,14 @@ export function PlatformsPage() {
   const adminSession = adminSessionQuery.data;
   const isAuthenticated = adminSession?.authenticated === true;
   const csrfToken = isAuthenticated ? adminSession.csrfToken : "";
+  const connectStatus =
+    searchParams.get("connect") === "x" ? searchParams.get("status") : null;
+
+  useEffect(() => {
+    if (connectStatus === "connected") {
+      invalidatePlatformConsumers(queryClient);
+    }
+  }, [connectStatus, queryClient]);
 
   const loginMutation = useMutation({
     mutationFn: (token: string) => loginAdminSession(token),
@@ -125,6 +138,28 @@ export function PlatformsPage() {
     },
   });
 
+  const startOAuthMutation = useMutation({
+    mutationFn: (input: { displayName: string; enabled: boolean }) => {
+      if (csrfToken === "") {
+        throw new Error("admin session is not available");
+      }
+      return startXOAuthConnection(input, { csrfToken });
+    },
+    onError: (error) => {
+      if (isAdminAuthError(error)) {
+        queryClient.setQueryData(["admin", "session"], lockedAdminSession);
+      }
+      notify({
+        tone: "warning",
+        title: "X connection failed.",
+        detail: requestIdDetail(error),
+      });
+    },
+    onSuccess: (response) => {
+      window.location.assign(response.authorizationUrl);
+    },
+  });
+
   function lockAdminSession() {
     queryClient.setQueryData(["admin", "session"], lockedAdminSession);
   }
@@ -149,6 +184,13 @@ export function PlatformsPage() {
     });
   }
 
+  function handleOAuthStartSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = displayName.trim();
+    if (name === "") return;
+    startOAuthMutation.mutate({ displayName: name, enabled });
+  }
+
   return (
     <div className="page-container" id="platforms-page">
       <header className="page-header">
@@ -163,6 +205,22 @@ export function PlatformsPage() {
           aria-label="Could not refresh platform status. Showing last known data."
         >
           Could not refresh platform status. Showing last known data.
+        </p>
+      ) : null}
+
+      {connectStatus === "connected" ? (
+        <p className="status-banner status-banner-success" role="status">
+          X connection added. Refreshing platform status.
+        </p>
+      ) : null}
+      {connectStatus === "denied" ? (
+        <p className="status-banner status-banner-warning" role="status">
+          X connection was cancelled.
+        </p>
+      ) : null}
+      {connectStatus === "failed" ? (
+        <p className="status-banner status-banner-warning" role="alert">
+          Echo could not connect X.
         </p>
       ) : null}
 
@@ -183,6 +241,11 @@ export function PlatformsPage() {
         onAccessTokenChange={setAccessToken}
         enabled={enabled}
         onEnabledChange={setEnabled}
+        onOAuthStartSubmit={handleOAuthStartSubmit}
+        isStartingOAuth={startOAuthMutation.isPending}
+        oauthStartError={startOAuthMutation.error}
+        showManualToken={showManualToken}
+        onShowManualTokenChange={setShowManualToken}
         onCreateSubmit={handleCreateSubmit}
         isCreating={createMutation.isPending}
         createError={createMutation.error}
@@ -265,6 +328,11 @@ type PlatformAdminPanelProps = {
   onAccessTokenChange: (accessToken: string) => void;
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
+  onOAuthStartSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  isStartingOAuth: boolean;
+  oauthStartError: unknown;
+  showManualToken: boolean;
+  onShowManualTokenChange: (showManualToken: boolean) => void;
   onCreateSubmit: (event: FormEvent<HTMLFormElement>) => void;
   isCreating: boolean;
   createError: unknown;
@@ -288,12 +356,22 @@ function PlatformAdminPanel({
   onAccessTokenChange,
   enabled,
   onEnabledChange,
+  onOAuthStartSubmit,
+  isStartingOAuth,
+  oauthStartError,
+  showManualToken,
+  onShowManualTokenChange,
   onCreateSubmit,
   isCreating,
   createError,
   createSucceeded,
 }: PlatformAdminPanelProps) {
   const isAuthenticated = adminSession?.authenticated === true;
+  const canStartOAuth =
+    isAuthenticated &&
+    displayName.trim() !== "" &&
+    !isStartingOAuth &&
+    !isCreating;
   const canCreate =
     isAuthenticated &&
     displayName.trim() !== "" &&
@@ -370,67 +448,97 @@ function PlatformAdminPanel({
           ) : null}
         </form>
       ) : (
-        <form className="platform-form" onSubmit={onCreateSubmit}>
-          <div className="platform-form-grid">
-            <label className="platform-form-field" htmlFor="platform-kind">
-              <span className="composer-label">Platform</span>
-              <select
-                id="platform-kind"
-                className="platform-select"
-                defaultValue="x"
-                disabled
+        <div className="platform-form-stack">
+          <form className="platform-form" onSubmit={onOAuthStartSubmit}>
+            <div className="platform-form-grid">
+              <label className="platform-form-field" htmlFor="platform-kind">
+                <span className="composer-label">Platform</span>
+                <select
+                  id="platform-kind"
+                  className="platform-select"
+                  defaultValue="x"
+                  disabled
+                >
+                  <option value="x">X</option>
+                </select>
+              </label>
+              <label
+                className="platform-form-field"
+                htmlFor="platform-display-name"
               >
-                <option value="x">X</option>
-              </select>
-            </label>
-            <label className="platform-form-field" htmlFor="platform-display-name">
-              <span className="composer-label">Display name</span>
-              <input
-                id="platform-display-name"
-                className="admin-token-input"
-                type="text"
-                value={displayName}
-                onChange={(event) => onDisplayNameChange(event.target.value)}
-              />
-            </label>
-            <label className="platform-form-field" htmlFor="platform-access-token">
-              <span className="composer-label">X access token</span>
-              <input
-                id="platform-access-token"
-                className="admin-token-input"
-                type="password"
-                autoComplete="off"
-                value={accessToken}
-                onChange={(event) => onAccessTokenChange(event.target.value)}
-              />
-            </label>
-          </div>
+                <span className="composer-label">Display name</span>
+                <input
+                  id="platform-display-name"
+                  className="admin-token-input"
+                  type="text"
+                  value={displayName}
+                  onChange={(event) => onDisplayNameChange(event.target.value)}
+                />
+              </label>
+            </div>
 
-          <label className="form-checkbox" htmlFor="platform-enabled">
-            <input
-              id="platform-enabled"
-              type="checkbox"
-              checked={enabled}
-              onChange={(event) => onEnabledChange(event.target.checked)}
-            />
-            <span>Enable connection after validation</span>
-          </label>
+            <label className="form-checkbox" htmlFor="platform-enabled">
+              <input
+                id="platform-enabled"
+                type="checkbox"
+                checked={enabled}
+                onChange={(event) => onEnabledChange(event.target.checked)}
+              />
+              <span>Enable connection after validation</span>
+            </label>
 
-          <button className="composer-button" type="submit" disabled={!canCreate}>
-            {isCreating ? "Adding" : "Add platform"}
+            <button className="composer-button" type="submit" disabled={!canStartOAuth}>
+              {isStartingOAuth ? "Connecting" : "Connect X"}
+            </button>
+            {oauthStartError ? (
+              <p className="section-copy" role="alert">
+                {isOAuthUnavailable(oauthStartError)
+                  ? "X connection is not configured in Echo."
+                  : "Echo could not start X connection."}
+                <RequestId error={oauthStartError} />
+              </p>
+            ) : null}
+          </form>
+
+          <button
+            className="secondary-button"
+            type="button"
+            aria-expanded={showManualToken}
+            onClick={() => onShowManualTokenChange(!showManualToken)}
+          >
+            Advanced manual token
           </button>
-          {createError ? (
-            <p className="section-copy" role="alert">
-              Echo could not add the platform.
-              <RequestId error={createError} />
-            </p>
+
+          {showManualToken ? (
+            <form className="platform-form" onSubmit={onCreateSubmit}>
+              <label className="platform-form-field" htmlFor="platform-access-token">
+                <span className="composer-label">X access token</span>
+                <input
+                  id="platform-access-token"
+                  className="admin-token-input"
+                  type="password"
+                  autoComplete="off"
+                  value={accessToken}
+                  onChange={(event) => onAccessTokenChange(event.target.value)}
+                />
+              </label>
+              <button className="composer-button" type="submit" disabled={!canCreate}>
+                {isCreating ? "Adding" : "Add platform"}
+              </button>
+              {createError ? (
+                <p className="section-copy" role="alert">
+                  Echo could not add the platform.
+                  <RequestId error={createError} />
+                </p>
+              ) : null}
+              {createSucceeded ? (
+                <p className="section-copy" role="status">
+                  Platform added. Refreshing status.
+                </p>
+              ) : null}
+            </form>
           ) : null}
-          {createSucceeded ? (
-            <p className="section-copy" role="status">
-              Platform added. Refreshing status.
-            </p>
-          ) : null}
-        </form>
+        </div>
       )}
     </section>
   );
@@ -726,6 +834,10 @@ function isAdminAuthError(error: unknown): boolean {
   return (
     error instanceof ApiError && (error.status === 401 || error.status === 403)
   );
+}
+
+function isOAuthUnavailable(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 503;
 }
 
 function getDisplayStatus(platform: PlatformConnection): {

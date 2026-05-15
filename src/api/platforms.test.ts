@@ -3,6 +3,7 @@ import {
   createPlatform,
   deletePlatform,
   listPlatforms,
+  startXOAuthConnection,
   updatePlatform,
 } from "@/api/platforms";
 
@@ -165,6 +166,36 @@ describe("admin platform API", () => {
     expect(data.displayName).toBe("Renamed X");
     expect(data.enabled).toBe(false);
     expect(data.accountHandle).toBe("@echo.test");
+  });
+
+  it("starts X OAuth with cookie credentials and the CSRF header", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        jsonResponse(200, {
+          authorizationUrl: "https://x.com/i/oauth2/authorize?state=state-1",
+        })
+      );
+
+    const data = await startXOAuthConnection(
+      { displayName: "Main X", enabled: true },
+      { csrfToken: "csrf-1" }
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8001/api/v1/platforms/x/oauth/start",
+      expect.objectContaining({
+        body: JSON.stringify({ displayName: "Main X", enabled: true }),
+        credentials: "include",
+        method: "POST",
+      })
+    );
+    const init = fetchMock.mock.calls[0]?.[1];
+    const headers = new Headers(init?.headers);
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("X-Echo-CSRF-Token")).toBe("csrf-1");
+    expect(headers.has("Authorization")).toBe(false);
+    expect(data.authorizationUrl).toContain("/i/oauth2/authorize");
   });
 
   it("deletes a platform with cookie credentials and the CSRF header", async () => {
