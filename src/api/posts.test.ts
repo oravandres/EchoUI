@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createPosts, deletePost, listPosts } from "@/api/posts";
+import { createPosts, deletePost, getPost, listPosts } from "@/api/posts";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -55,6 +55,42 @@ describe("listPosts", () => {
     );
 
     await expect(listPosts()).rejects.toThrow();
+  });
+});
+
+describe("getPost", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("requests one public post and parses the response", async () => {
+    const signal = new AbortController().signal;
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        jsonResponse(200, {
+          id: "post/1",
+          platformConnectionId: "conn-1",
+          platform: "x",
+          externalPostId: "tweet-1",
+          text: "hello from Echo",
+          status: "published",
+          publishedAt: "2026-05-14T12:00:00Z",
+          createdAt: "2026-05-14T12:00:00Z",
+          updatedAt: "2026-05-14T12:00:00Z",
+        })
+      );
+
+    const data = await getPost("post/1", { signal });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8001/api/v1/posts/post%2F1",
+      expect.objectContaining({ signal })
+    );
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(new Headers(init?.headers).has("Authorization")).toBe(false);
+    expect(data.id).toBe("post/1");
+    expect(data.externalPostId).toBe("tweet-1");
   });
 });
 

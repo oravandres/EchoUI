@@ -61,6 +61,16 @@ export async function listPosts(
   return postsResponseSchema.parse(data);
 }
 
+export async function getPost(
+  id: string,
+  params: ListPostsParams = {}
+): Promise<Post> {
+  const data = await fetchJson<unknown>(`${API_PREFIX}/${encodeURIComponent(id)}`, {
+    signal: params.signal,
+  });
+  return postSchema.parse(data);
+}
+
 export async function createPosts(
   input: CreatePostsInput,
   params: AdminPostParams
