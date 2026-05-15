@@ -989,6 +989,74 @@ a:hover {
   font-size: 0.85rem;
 }
 
+.engagement-history-loading {
+  margin-top: var(--space-lg);
+}
+
+.engagement-trend {
+  display: grid;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+
+.engagement-trend-chart {
+  width: 100%;
+  min-height: 220px;
+  overflow: visible;
+}
+
+.engagement-chart-grid {
+  stroke: rgba(148, 163, 184, 0.22);
+  stroke-width: 1;
+}
+
+.engagement-chart-line {
+  fill: none;
+  stroke: var(--color-primary);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.engagement-chart-point {
+  fill: var(--color-primary);
+  stroke: var(--surface-card);
+  stroke-width: 2;
+}
+
+.engagement-trend-single {
+  margin-top: var(--space-lg);
+}
+
+.trend-summary-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}
+
+.trend-summary-list div {
+  padding: var(--space-md);
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.trend-summary-list dt {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.trend-summary-list dd {
+  margin-top: var(--space-xs);
+  color: var(--text-primary);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
 /* ── Welcome Section ──────────────────────────────────────── */
 .welcome-section {
   padding: var(--space-2xl);

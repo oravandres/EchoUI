@@ -52,7 +52,7 @@ src/
 - `/posts` — post history with admin-session publishing and deletion controls
 - `/posts/:id` — post detail with persisted status and latest public engagement metrics
 - `/platforms` — connected platform status, connection health, and admin-session platform management
-- `/stats` — aggregate post, platform, and latest public engagement summary
+- `/stats` — aggregate post, platform, latest engagement, and engagement trend summary
 
 ## Design
 

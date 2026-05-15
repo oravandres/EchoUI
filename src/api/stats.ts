@@ -42,6 +42,17 @@ const engagementStatsSchema = z.object({
   lastFetchedAt: z.string().optional(),
 });
 
+const engagementHistoryPointSchema = z.object({
+  fetchedAt: z.string(),
+  postsMeasured: z.number(),
+  likeCount: z.number(),
+  replyCount: z.number(),
+  repostCount: z.number(),
+  quoteCount: z.number(),
+  bookmarkCount: z.number(),
+  impressionCount: z.number(),
+});
+
 const platformBreakdownSchema = z.object({
   platform: z.string(),
   posts: postStatsSchema,
@@ -74,17 +85,34 @@ const refreshStatsResponseSchema = z.object({
   data: refreshSummarySchema,
 });
 
+const engagementHistoryResponseSchema = z.object({
+  data: z.object({
+    items: z.array(engagementHistoryPointSchema),
+    limit: z.number(),
+    platform: z.string().optional(),
+    generatedAt: z.string(),
+  }),
+});
+
 export type PostStats = z.infer<typeof postStatsSchema>;
 export type PlatformStats = z.infer<typeof platformStatsSchema>;
 export type EngagementStats = z.infer<typeof engagementStatsSchema>;
+export type EngagementHistoryPoint = z.infer<typeof engagementHistoryPointSchema>;
 export type PlatformStatsBreakdown = z.infer<typeof platformBreakdownSchema>;
 export type StatsSummary = z.infer<typeof statsSummarySchema>;
 export type StatsResponse = z.infer<typeof statsResponseSchema>;
 export type RefreshStatsSummary = z.infer<typeof refreshSummarySchema>;
 export type RefreshStatsResponse = z.infer<typeof refreshStatsResponseSchema>;
+export type EngagementHistoryResponse = z.infer<typeof engagementHistoryResponseSchema>;
 
 export type FetchStatsParams = {
   /** Pass from React Query `queryFn` context to cancel superseded requests. */
+  signal?: AbortSignal;
+};
+
+export type FetchEngagementHistoryParams = {
+  limit?: number;
+  platform?: string;
   signal?: AbortSignal;
 };
 
@@ -100,6 +128,24 @@ export async function fetchStats(
     signal: params.signal,
   });
   return statsResponseSchema.parse(data);
+}
+
+export async function fetchEngagementHistory(
+  params: FetchEngagementHistoryParams = {}
+): Promise<EngagementHistoryResponse> {
+  const query = new URLSearchParams();
+  if (params.limit !== undefined) {
+    query.set("limit", String(params.limit));
+  }
+  if (params.platform !== undefined && params.platform.trim() !== "") {
+    query.set("platform", params.platform.trim());
+  }
+  const queryString = query.toString();
+  const suffix = queryString !== "" ? `?${queryString}` : "";
+  const data = await fetchJson<unknown>(`${API_PREFIX}/engagement/history${suffix}`, {
+    signal: params.signal,
+  });
+  return engagementHistoryResponseSchema.parse(data);
 }
 
 export async function refreshStats(
