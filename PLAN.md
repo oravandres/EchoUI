@@ -128,7 +128,7 @@ unset, preventing accidental deploys with a dangling API reference.
 | ~~Phase 2~~ | Platform status page: list connected platforms, connection health, create/update/delete platform connections | ✅ Done |
 | ~~Phase 3~~ | Post composer: create and publish posts to multiple platforms | ✅ Done — browser admin sessions unlock publishing without bundling admin tokens |
 | Phase 4 | Post list: view published posts, detail status, engagement | ✅ Done — list/detail views show latest stored engagement and admin-session delete controls |
-| Phase 5 | Statistics dashboard: service summary, engagement metrics, charts, and trends | Partially done — aggregate status and latest engagement metrics are live; historical charts and trends remain future scope |
+| Phase 5 | Statistics dashboard: service summary, engagement metrics, charts, and trends | ✅ Done — aggregate status, latest engagement metrics, and engagement trends are live |
 | Phase 6 | Kubernetes manifests in MiMi repo | ✅ Done — EchoUI is deployed through MiMi with digest-pinned images |
 
 ---
@@ -141,13 +141,13 @@ unset, preventing accidental deploys with a dangling API reference.
 | `/posts` | Posts | Post history, admin-session composer, and delete controls |
 | `/posts/{id}` | Post Detail | Post content, platform status, and latest public engagement metrics |
 | `/platforms` | Platforms | Connected accounts, health status, and admin-session platform management |
-| `/stats` | Statistics | Aggregate post, platform, and latest public engagement summary |
+| `/stats` | Statistics | Aggregate post, platform, latest public engagement, and engagement trend summary |
 
 ---
 
 ## 9. Open Questions / Future Scope
 
-- **Chart library**: Recharts vs. Chart.js vs. custom SVG for historical stats.
+- **Chart library**: The current trend view uses custom SVG; a dedicated chart library can be considered if richer analytics are added.
 - **Real-time updates**: WebSocket or SSE for live engagement metrics.
 - **Post preview**: Render post as it would appear on each platform.
 - **Dark/light mode toggle**: Currently dark-only; add theme switcher later.

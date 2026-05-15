@@ -5,13 +5,16 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAdminSession } from "@/api/adminSession";
 import {
+  fetchEngagementHistory,
   fetchStats,
   refreshStats,
+  type EngagementHistoryResponse,
   type StatsResponse,
 } from "@/api/stats";
 import { StatsPage } from "@/pages/StatsPage";
 
 vi.mock("@/api/stats", () => ({
+  fetchEngagementHistory: vi.fn(),
   fetchStats: vi.fn(),
   refreshStats: vi.fn(),
 }));
@@ -20,6 +23,7 @@ vi.mock("@/api/adminSession", () => ({
   getAdminSession: vi.fn(),
 }));
 
+const fetchEngagementHistoryMock = vi.mocked(fetchEngagementHistory);
 const fetchStatsMock = vi.mocked(fetchStats);
 const refreshStatsMock = vi.mocked(refreshStats);
 const getAdminSessionMock = vi.mocked(getAdminSession);
@@ -27,6 +31,7 @@ const getAdminSessionMock = vi.mocked(getAdminSession);
 describe("StatsPage", () => {
   beforeEach(() => {
     fetchStatsMock.mockResolvedValue(statsResponse);
+    fetchEngagementHistoryMock.mockResolvedValue(historyResponse);
     refreshStatsMock.mockResolvedValue({
       data: {
         attempted: 1,
@@ -59,10 +64,15 @@ describe("StatsPage", () => {
 
     expect(await screen.findByText("3 total")).toBeInTheDocument();
     expect(screen.getByText("1 measured")).toBeInTheDocument();
-    expect(screen.getByText("600")).toBeInTheDocument();
+    expect(screen.getAllByText("600").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("img", { name: /impressions trend/i })).toBeInTheDocument();
     expect(screen.getAllByText("1 enabled").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole("heading", { name: "x" })).toBeInTheDocument();
     expect(fetchStatsMock).toHaveBeenCalledWith({
+      signal: expect.any(AbortSignal),
+    });
+    expect(fetchEngagementHistoryMock).toHaveBeenCalledWith({
+      limit: 30,
       signal: expect.any(AbortSignal),
     });
   });
@@ -109,6 +119,34 @@ describe("StatsPage", () => {
         name: "Could not refresh statistics. Showing last known data.",
       })
     ).toBeInTheDocument();
+  });
+
+  it("shows stable copy when engagement history is unavailable", async () => {
+    fetchEngagementHistoryMock.mockRejectedValue(new Error("database password leaked"));
+
+    renderWithQueryClient(<StatsPage />);
+
+    expect(
+      await screen.findByText("Engagement history is unavailable.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("database password leaked")).not.toBeInTheDocument();
+  });
+
+  it("keeps cached engagement history visible when history refresh fails", async () => {
+    const client = createTestQueryClient();
+    client.setQueryData(["stats", "summary"], statsResponse);
+    client.setQueryData(["stats", "engagement-history", 30], historyResponse);
+    fetchEngagementHistoryMock.mockRejectedValue(new Error("raw provider error"));
+
+    renderWithQueryClient(<StatsPage />, client);
+
+    expect(screen.getByRole("img", { name: /impressions trend/i })).toBeInTheDocument();
+    expect(
+      await screen.findByText("Could not refresh engagement history. Showing last known trend.", {
+        exact: false,
+      })
+    ).toBeInTheDocument();
+    expect(screen.queryByText("raw provider error")).not.toBeInTheDocument();
   });
 });
 
@@ -170,6 +208,35 @@ const statsResponse: StatsResponse = {
       },
     ],
     generatedAt: "2026-05-15T09:00:00Z",
+  },
+};
+
+const historyResponse: EngagementHistoryResponse = {
+  data: {
+    items: [
+      {
+        fetchedAt: "2026-05-15T09:00:00Z",
+        postsMeasured: 1,
+        likeCount: 5,
+        replyCount: 1,
+        repostCount: 2,
+        quoteCount: 0,
+        bookmarkCount: 1,
+        impressionCount: 300,
+      },
+      {
+        fetchedAt: "2026-05-15T10:00:00Z",
+        postsMeasured: 1,
+        likeCount: 10,
+        replyCount: 2,
+        repostCount: 3,
+        quoteCount: 4,
+        bookmarkCount: 5,
+        impressionCount: 600,
+      },
+    ],
+    limit: 30,
+    generatedAt: "2026-05-15T10:05:00Z",
   },
 };
 

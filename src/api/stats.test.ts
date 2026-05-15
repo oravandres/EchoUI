@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchStats, refreshStats } from "@/api/stats";
+import {
+  fetchEngagementHistory,
+  fetchStats,
+  refreshStats,
+} from "@/api/stats";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -152,6 +156,63 @@ describe("fetchStats", () => {
     expect(data.data.engagement.postsMeasured).toBe(0);
     expect(data.data.engagement.impressionCount).toBe(0);
     expect(data.data.byPlatform[0]?.engagement.likeCount).toBe(0);
+  });
+});
+
+describe("fetchEngagementHistory", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("requests the public engagement history endpoint and parses the response", async () => {
+    const signal = new AbortController().signal;
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        jsonResponse(200, {
+          data: {
+            items: [
+              {
+                fetchedAt: "2026-05-15T09:00:00Z",
+                postsMeasured: 1,
+                likeCount: 10,
+                replyCount: 2,
+                repostCount: 3,
+                quoteCount: 4,
+                bookmarkCount: 5,
+                impressionCount: 600,
+              },
+            ],
+            limit: 30,
+            platform: "x",
+            generatedAt: "2026-05-15T09:10:00Z",
+          },
+        })
+      );
+
+    const data = await fetchEngagementHistory({
+      limit: 30,
+      platform: "x",
+      signal,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8001/api/v1/stats/engagement/history?limit=30&platform=x",
+      expect.objectContaining({ signal })
+    );
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(new Headers(init?.headers).has("Authorization")).toBe(false);
+    expect(data.data.items[0]?.impressionCount).toBe(600);
+  });
+
+  it("rejects responses that do not match the history contract", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, {
+        data: { items: [{ fetchedAt: "not enough fields" }] },
+      })
+    );
+
+    await expect(fetchEngagementHistory()).rejects.toThrow();
   });
 });
 
