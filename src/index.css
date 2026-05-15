@@ -1,11 +1,13 @@
 /* ============================================================
    Echo Design System
-   A dark, modern dashboard theme with glassmorphism and
+   A modern dashboard theme with glassmorphism and
    vibrant gradient accents.
    ============================================================ */
 
 /* ── Design Tokens ────────────────────────────────────────── */
 :root {
+  color-scheme: dark;
+
   /* Surface palette – deep navy/charcoal */
   --surface-base: #0a0e1a;
   --surface-raised: #111827;
@@ -62,6 +64,26 @@
   --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --surface-base: #f8fafc;
+  --surface-raised: #ffffff;
+  --surface-overlay: #e2e8f0;
+  --surface-glass: rgba(255, 255, 255, 0.82);
+  --surface-glass-border: rgba(15, 23, 42, 0.1);
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-inverse: #ffffff;
+
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.14);
+  --shadow-glow: 0 0 24px rgba(6, 182, 212, 0.1);
+}
+
 /* ── Reset & Base ─────────────────────────────────────────── */
 *,
 *::before,
@@ -97,6 +119,12 @@ body::before {
     radial-gradient(ellipse 60% 80% at 90% 80%, rgba(139, 92, 246, 0.05) 0%, transparent 60%);
   pointer-events: none;
   z-index: 0;
+}
+
+:root[data-theme="light"] body::before {
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 20%, rgba(6, 182, 212, 0.08) 0%, transparent 62%),
+    radial-gradient(ellipse 60% 80% at 90% 80%, rgba(99, 102, 241, 0.07) 0%, transparent 62%);
 }
 
 #root {
@@ -171,6 +199,43 @@ a:hover {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-left: auto;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 1rem;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.theme-toggle:hover,
+.theme-toggle:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--text-primary);
+}
+
+:root[data-theme="light"] .theme-toggle {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+:root[data-theme="light"] .theme-toggle:hover,
+:root[data-theme="light"] .theme-toggle:focus-visible {
+  background: rgba(15, 23, 42, 0.07);
+  border-color: rgba(15, 23, 42, 0.16);
 }
 
 .sidebar-nav {
@@ -785,6 +850,85 @@ a:hover {
   font-size: 0.82rem;
 }
 
+.post-preview {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.post-preview-header,
+.post-preview-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.post-preview-count,
+.post-preview-empty,
+.post-preview-handle {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.post-preview-list {
+  display: grid;
+  gap: var(--space-sm);
+  list-style: none;
+}
+
+.post-preview-card {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(15, 23, 42, 0.72);
+}
+
+:root[data-theme="light"] .post-preview-card {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.post-preview-platform {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.post-preview-name {
+  margin-top: var(--space-xs);
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.post-preview-handle {
+  margin-top: 2px;
+}
+
+.post-preview-body {
+  color: var(--text-primary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.post-preview-body-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.post-preview-warning {
+  color: var(--color-error);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
 .post-delete-button {
   margin-top: var(--space-lg);
 }
@@ -1273,6 +1417,7 @@ a:hover {
   }
 
   .composer-header,
+  .post-preview-card-header,
   .post-card-header {
     flex-direction: column;
   }

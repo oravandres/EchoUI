@@ -1,6 +1,9 @@
 import { Outlet, NavLink } from "react-router";
+import { useTheme } from "@/components/ThemeContext";
 
 export function Layout() {
+  const { nextTheme, theme, toggleTheme } = useTheme();
+
   return (
     <div className="app-layout">
       <aside className="sidebar" id="sidebar-nav">
@@ -19,6 +22,15 @@ export function Layout() {
             </svg>
           </div>
           <span className="brand-name">Echo</span>
+          <button
+            className="theme-toggle"
+            type="button"
+            aria-label={`Switch to ${nextTheme} theme`}
+            aria-pressed={theme === "light"}
+            onClick={toggleTheme}
+          >
+            <span aria-hidden="true">{theme === "dark" ? "☾" : "☀"}</span>
+          </button>
         </div>
 
         <nav className="sidebar-nav" aria-label="Main">

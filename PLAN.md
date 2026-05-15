@@ -131,6 +131,8 @@ unset, preventing accidental deploys with a dangling API reference.
 | Phase 5 | Statistics dashboard: service summary, engagement metrics, charts, and trends | ✅ Done — aggregate status, latest engagement metrics, and engagement trends are live |
 | Phase 6 | Kubernetes manifests in MiMi repo | ✅ Done — EchoUI is deployed through MiMi with digest-pinned images |
 | Phase 7 | Operation feedback | ✅ Done — admin mutations surface dismissible success/failure notifications without exposing raw errors |
+| Phase 8 | Post preview | ✅ Done — composer renders selected-platform previews before publish |
+| Phase 9 | Theme preferences | ✅ Done — the app shell exposes a persisted dark/light theme toggle |
 
 ---
 
@@ -150,5 +152,3 @@ unset, preventing accidental deploys with a dangling API reference.
 
 - **Chart library**: The current trend view uses custom SVG; a dedicated chart library can be considered if richer analytics are added.
 - **Real-time updates**: WebSocket or SSE for live engagement metrics.
-- **Post preview**: Render post as it would appear on each platform.
-- **Dark/light mode toggle**: Currently dark-only; add theme switcher later.

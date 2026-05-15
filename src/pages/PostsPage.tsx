@@ -520,6 +520,13 @@ function Composer({
             </p>
           </fieldset>
 
+          <PostPreview
+            platforms={enabledPlatforms}
+            selectedPlatformIds={selectedEnabledPlatformIds}
+            text={postText}
+            textLength={textLength}
+          />
+
           <button className="composer-button" type="submit" disabled={!canPublish}>
             {isPublishing ? "Publishing" : "Publish"}
           </button>
@@ -535,6 +542,72 @@ function Composer({
             </p>
           ) : null}
         </form>
+      )}
+    </section>
+  );
+}
+
+function PostPreview({
+  platforms,
+  selectedPlatformIds,
+  text,
+  textLength,
+}: {
+  platforms: PlatformConnection[];
+  selectedPlatformIds: string[];
+  text: string;
+  textLength: number;
+}) {
+  const selectedPlatforms = platforms.filter((platform) =>
+    selectedPlatformIds.includes(platform.id)
+  );
+  const trimmedText = text.trim();
+  const overLimit = textLength > 280;
+
+  return (
+    <section className="post-preview" aria-labelledby="post-preview-title">
+      <div className="post-preview-header">
+        <h3 className="composer-label" id="post-preview-title">
+          Preview
+        </h3>
+        <span className={overLimit ? "text-error" : "post-preview-count"}>
+          {textLength}/280
+        </span>
+      </div>
+
+      {selectedPlatforms.length === 0 ? (
+        <p className="post-preview-empty">No target platforms selected.</p>
+      ) : (
+        <ul className="post-preview-list" role="list">
+          {selectedPlatforms.map((platform) => (
+            <li className="post-preview-card" key={platform.id}>
+              <div className="post-preview-card-header">
+                <div>
+                  <p className="post-preview-platform">{platform.platform}</p>
+                  <h4 className="post-preview-name">{platform.displayName}</h4>
+                  {platform.accountHandle ? (
+                    <p className="post-preview-handle">{platform.accountHandle}</p>
+                  ) : null}
+                </div>
+                <span className="status-badge status-badge-healthy">Selected</span>
+              </div>
+              <p
+                className={
+                  trimmedText === ""
+                    ? "post-preview-body post-preview-body-empty"
+                    : "post-preview-body"
+                }
+              >
+                {trimmedText || "Post text is empty."}
+              </p>
+              {overLimit ? (
+                <p className="post-preview-warning" role="alert">
+                  Over X's 280-character limit.
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

@@ -167,6 +167,58 @@ describe("PostsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders a live preview for selected enabled platforms", async () => {
+    getAdminSessionMock.mockResolvedValue(authenticatedSession);
+    listPlatformsMock.mockResolvedValue(
+      platformsResponse([
+        xPlatform,
+        {
+          ...xPlatform,
+          id: "conn-2",
+          displayName: "Backup X",
+          accountHandle: "@backup",
+          enabled: false,
+        },
+      ])
+    );
+    const user = userEvent.setup();
+
+    renderWithQueryClient(<PostsPage />);
+
+    const textarea = await screen.findByRole("textbox", { name: "Post text" });
+    const composer = screen.getByRole("region", { name: "Compose" });
+    const preview = within(composer).getByRole("region", { name: "Preview" });
+
+    expect(within(preview).getByText("Main X")).toBeInTheDocument();
+    expect(within(preview).getByText("@echo")).toBeInTheDocument();
+    expect(within(preview).queryByText("Backup X")).not.toBeInTheDocument();
+    expect(within(preview).getByText("Post text is empty.")).toBeInTheDocument();
+
+    await user.type(textarea, "Preview copy");
+
+    expect(within(preview).getByText("Preview copy")).toBeInTheDocument();
+    expect(within(preview).getByText("12/280")).toBeInTheDocument();
+  });
+
+  it("marks over-limit preview text and disables publishing", async () => {
+    getAdminSessionMock.mockResolvedValue(authenticatedSession);
+    const user = userEvent.setup();
+
+    renderWithQueryClient(<PostsPage />);
+
+    const textarea = await screen.findByRole("textbox", { name: "Post text" });
+    const composer = screen.getByRole("region", { name: "Compose" });
+    await user.type(textarea, "x".repeat(281));
+
+    const preview = within(composer).getByRole("region", { name: "Preview" });
+    expect(
+      within(preview).getByText("Over X's 280-character limit.")
+    ).toBeInTheDocument();
+    expect(
+      within(composer).getByRole("button", { name: "Publish" })
+    ).toBeDisabled();
+  });
+
   it("keeps publishing disabled when no enabled platforms are available", async () => {
     getAdminSessionMock.mockResolvedValue(authenticatedSession);
     listPlatformsMock.mockResolvedValue(
