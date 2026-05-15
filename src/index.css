@@ -481,6 +481,29 @@ a:hover {
   font-size: 0.82rem;
 }
 
+.platform-management-form {
+  display: grid;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--surface-glass-border);
+}
+
+.platform-management-form .admin-token-input {
+  width: 100%;
+}
+
+.platform-management-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.platform-management-message {
+  margin-top: var(--space-md);
+}
+
 .platform-skeleton {
   height: 84px;
   border-radius: var(--radius-md);
