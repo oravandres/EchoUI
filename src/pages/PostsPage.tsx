@@ -11,6 +11,7 @@ import { ApiError } from "@/api/client";
 import { type PlatformConnection, listPlatforms } from "@/api/platforms";
 import {
   type CreatePostsInput,
+  type Engagement,
   type Post,
   type PostStatus,
   createPosts,
@@ -552,6 +553,10 @@ function PostCard({
         <p className="post-error">{post.errorMessage}</p>
       ) : null}
 
+      {post.engagement ? (
+        <EngagementInline engagement={post.engagement} />
+      ) : null}
+
       <dl className="post-meta-list">
         <div>
           <dt>Created</dt>
@@ -589,6 +594,29 @@ function PostCard({
         </button>
       ) : null}
     </li>
+  );
+}
+
+function EngagementInline({ engagement }: { engagement: Engagement }) {
+  return (
+    <dl className="post-engagement-inline" aria-label="Public engagement">
+      <div>
+        <dt>Likes</dt>
+        <dd>{engagement.likeCount.toLocaleString()}</dd>
+      </div>
+      <div>
+        <dt>Replies</dt>
+        <dd>{engagement.replyCount.toLocaleString()}</dd>
+      </div>
+      <div>
+        <dt>Reposts</dt>
+        <dd>{engagement.repostCount.toLocaleString()}</dd>
+      </div>
+      <div>
+        <dt>Impressions</dt>
+        <dd>{engagement.impressionCount.toLocaleString()}</dd>
+      </div>
+    </dl>
   );
 }
 

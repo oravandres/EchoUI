@@ -50,9 +50,9 @@ src/
 
 - `/` — dashboard with API health and platform status summary
 - `/posts` — post history with admin-session publishing and deletion controls
-- `/posts/:id` — post detail with persisted status and engagement placeholder
+- `/posts/:id` — post detail with persisted status and latest public engagement metrics
 - `/platforms` — connected platform status, connection health, and admin-session platform management
-- `/stats` — aggregate post and platform status summary
+- `/stats` — aggregate post, platform, and latest public engagement summary
 
 ## Design
 

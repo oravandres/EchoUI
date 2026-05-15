@@ -34,6 +34,7 @@ describe("HomePage", () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     );
     expect(await screen.findByText("1 tracked")).toBeInTheDocument();
+    expect(await screen.findByText("10 likes")).toBeInTheDocument();
   });
 
   it("shows a stable unavailable state when the stats endpoint fails", async () => {
@@ -42,7 +43,7 @@ describe("HomePage", () => {
 
     renderWithQueryClient(<HomePage />);
 
-    expect(await screen.findAllByText("Unavailable")).toHaveLength(2);
+    expect(await screen.findAllByText("Unavailable")).toHaveLength(3);
     expect(screen.queryByText(/database password/i)).not.toBeInTheDocument();
   });
 });
@@ -64,6 +65,15 @@ function statsResponse(platforms: number, posts: number) {
         healthy: platforms,
         unhealthy: 0,
         unknown: 0,
+      },
+      engagement: {
+        postsMeasured: posts,
+        likeCount: 10,
+        replyCount: 0,
+        repostCount: 0,
+        quoteCount: 0,
+        bookmarkCount: 0,
+        impressionCount: 100,
       },
       byPlatform: [],
       generatedAt: "2026-05-15T09:00:00Z",
