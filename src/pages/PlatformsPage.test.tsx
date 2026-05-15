@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type AdminSession,
@@ -14,6 +15,7 @@ import {
   deletePlatform,
   type PlatformConnection,
   listPlatforms,
+  startXOAuthConnection,
   updatePlatform,
 } from "@/api/platforms";
 import { ToastProvider } from "@/components/ToastProvider";
@@ -42,6 +44,7 @@ vi.mock("@/api/platforms", async () => {
     ...actual,
     listPlatforms: vi.fn(),
     createPlatform: vi.fn(),
+    startXOAuthConnection: vi.fn(),
     updatePlatform: vi.fn(),
     deletePlatform: vi.fn(),
   };
@@ -52,6 +55,7 @@ const loginAdminSessionMock = vi.mocked(loginAdminSession);
 const logoutAdminSessionMock = vi.mocked(logoutAdminSession);
 const listPlatformsMock = vi.mocked(listPlatforms);
 const createPlatformMock = vi.mocked(createPlatform);
+const startXOAuthConnectionMock = vi.mocked(startXOAuthConnection);
 const updatePlatformMock = vi.mocked(updatePlatform);
 const deletePlatformMock = vi.mocked(deletePlatform);
 
@@ -62,6 +66,7 @@ describe("PlatformsPage", () => {
     logoutAdminSessionMock.mockResolvedValue(undefined);
     listPlatformsMock.mockResolvedValue(platformsResponse([]));
     createPlatformMock.mockResolvedValue(xPlatform);
+    startXOAuthConnectionMock.mockReturnValue(new Promise(() => {}));
     updatePlatformMock.mockResolvedValue(xPlatform);
     deletePlatformMock.mockResolvedValue(undefined);
   });
@@ -150,7 +155,7 @@ describe("PlatformsPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("unlocks the add form and creates an X platform connection", async () => {
+  it("unlocks the add form and starts X OAuth connection", async () => {
     const user = userEvent.setup();
     listPlatformsMock.mockResolvedValue(platformsResponse([]));
 
@@ -164,6 +169,28 @@ describe("PlatformsPage", () => {
     });
 
     await user.clear(await screen.findByLabelText("Display name"));
+    await user.type(screen.getByLabelText("Display name"), "Echo X");
+    await user.click(screen.getByRole("button", { name: "Connect X" }));
+
+    await waitFor(() => {
+      expect(startXOAuthConnectionMock).toHaveBeenCalledWith(
+        { displayName: "Echo X", enabled: true },
+        { csrfToken: "csrf-1" }
+      );
+    });
+    expect(screen.queryByLabelText("X access token")).not.toBeInTheDocument();
+  });
+
+  it("keeps manual token creation behind the advanced fallback", async () => {
+    const user = userEvent.setup();
+    getAdminSessionMock.mockResolvedValue(authenticatedSession);
+    listPlatformsMock.mockResolvedValue(platformsResponse([]));
+
+    renderWithQueryClient(<PlatformsPage />);
+
+    expect(screen.queryByLabelText("X access token")).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Advanced manual token" }));
+    await user.clear(screen.getByLabelText("Display name"));
     await user.type(screen.getByLabelText("Display name"), "Echo X");
     await user.type(screen.getByLabelText("X access token"), "x-token");
     await user.click(screen.getByRole("button", { name: "Add platform" }));
@@ -182,6 +209,39 @@ describe("PlatformsPage", () => {
     expect(
       await screen.findByText("Platform connection added.")
     ).toBeInTheDocument();
+  });
+
+  it("shows stable OAuth unavailable copy", async () => {
+    const user = userEvent.setup();
+    getAdminSessionMock.mockResolvedValue(authenticatedSession);
+    startXOAuthConnectionMock.mockRejectedValue(
+      new ApiError("provider config leaked", 503, undefined, {
+        requestId: "request-1",
+      })
+    );
+
+    renderWithQueryClient(<PlatformsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Connect X" }));
+
+    expect(
+      await screen.findByText(/X connection is not configured in Echo\./)
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/provider config leaked/i)).not.toBeInTheDocument();
+    expect(screen.getByText("request-1")).toBeInTheDocument();
+  });
+
+  it("renders OAuth callback result states", async () => {
+    const client = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+
+    renderWithQueryClient(<PlatformsPage />, client, "/platforms?connect=x&status=connected");
+
+    expect(
+      await screen.findByText("X connection added. Refreshing platform status.")
+    ).toBeInTheDocument();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["platforms"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["stats"] });
   });
 
   it("shows management controls after admin unlock", async () => {
@@ -377,6 +437,7 @@ describe("PlatformsPage", () => {
 
     renderWithQueryClient(<PlatformsPage />);
 
+    await user.click(await screen.findByRole("button", { name: "Advanced manual token" }));
     await user.type(await screen.findByLabelText("X access token"), "bad-token");
     await user.click(screen.getByRole("button", { name: "Add platform" }));
 
@@ -423,11 +484,14 @@ function createTestQueryClient() {
 
 function renderWithQueryClient(
   ui: ReactNode,
-  client = createTestQueryClient()
+  client = createTestQueryClient(),
+  route = "/platforms"
 ) {
   return render(
     <QueryClientProvider client={client}>
-      <ToastProvider>{ui}</ToastProvider>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

@@ -88,6 +88,19 @@ export type UpdatePlatformInput = {
   };
 };
 
+export type StartXOAuthInput = {
+  displayName: string;
+  enabled: boolean;
+};
+
+export type StartXOAuthResponse = {
+  authorizationUrl: string;
+};
+
+const startXOAuthResponseSchema = z.object({
+  authorizationUrl: z.string().url(),
+});
+
 export async function listPlatforms(
   params: ListPlatformsParams = {}
 ): Promise<PlatformsResponse> {
@@ -110,6 +123,25 @@ export async function createPlatform(
     signal: params.signal,
   });
   return adminPlatformConnectionSchema.parse(data);
+}
+
+export async function startXOAuthConnection(
+  input: StartXOAuthInput,
+  params: AdminPlatformParams
+): Promise<StartXOAuthResponse> {
+  const headers = new Headers();
+  headers.set(ADMIN_CSRF_HEADER, params.csrfToken);
+
+  const data = await postJson<unknown>(
+    `${ADMIN_API_PREFIX}/x/oauth/start`,
+    input,
+    {
+      credentials: "include",
+      headers,
+      signal: params.signal,
+    }
+  );
+  return startXOAuthResponseSchema.parse(data);
 }
 
 export async function updatePlatform(
