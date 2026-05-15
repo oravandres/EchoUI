@@ -54,10 +54,15 @@ src/
 - `/platforms` — connected platform status, connection health, and admin-session platform management
 - `/stats` — aggregate post, platform, latest engagement, and engagement trend summary
 
+Admin-session actions show dismissible success and failure notifications. Failure
+messages use stable UI copy and include an Echo request ID when the API provides
+one.
+
 ## Design
 
 - **Dark theme** with glassmorphism effects
 - **Teal-to-indigo** gradient accent palette
 - **Inter** typeface from Google Fonts
 - Micro-animations and smooth transitions
+- Dismissible operation notifications
 - Fully responsive (mobile → desktop)

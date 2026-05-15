@@ -361,6 +361,77 @@ a:hover {
   border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
+/* ── Notifications ───────────────────────────────────────── */
+.toast-viewport {
+  position: fixed;
+  top: var(--space-lg);
+  right: var(--space-lg);
+  z-index: 300;
+  display: grid;
+  gap: var(--space-sm);
+  width: min(380px, calc(100vw - var(--space-lg) * 2));
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: rgba(17, 24, 39, 0.96);
+  border: 1px solid var(--surface-glass-border);
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+}
+
+.toast-success {
+  border-color: rgba(16, 185, 129, 0.32);
+}
+
+.toast-warning {
+  border-color: rgba(245, 158, 11, 0.34);
+}
+
+.toast-title {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.toast-detail {
+  margin-top: var(--space-xs);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.toast-dismiss {
+  flex-shrink: 0;
+  border: 1px solid var(--surface-glass-border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: var(--space-xs) var(--space-sm);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.toast-dismiss:hover,
+.toast-dismiss:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--text-primary);
+}
+
 /* ── Platforms ───────────────────────────────────────────── */
 .platforms-panel {
   padding: var(--space-2xl);

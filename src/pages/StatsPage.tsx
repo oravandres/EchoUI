@@ -4,6 +4,7 @@ import {
   getAdminSession,
 } from "@/api/adminSession";
 import { ApiError } from "@/api/client";
+import { useToasts } from "@/components/ToastContext";
 import {
   type EngagementHistoryResponse,
   type EngagementHistoryPoint,
@@ -22,6 +23,7 @@ const lockedAdminSession: AdminSession = {
 
 export function StatsPage() {
   const queryClient = useQueryClient();
+  const { notify } = useToasts();
   const statsQuery = useQuery({
     queryKey: ["stats", "summary"],
     queryFn: ({ signal }) => fetchStats({ signal }),
@@ -57,10 +59,20 @@ export function StatsPage() {
       if (isAdminAuthError(error)) {
         queryClient.setQueryData(["admin", "session"], lockedAdminSession);
       }
+      notify({
+        tone: "warning",
+        title: "Metrics refresh failed.",
+        detail: requestIdDetail(error),
+      });
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["stats"] });
       void queryClient.invalidateQueries({ queryKey: ["posts"] });
+      notify({
+        tone: "success",
+        title: "Metrics refresh completed.",
+        detail: `${result.data.refreshed.toLocaleString()} refreshed, ${result.data.failed.toLocaleString()} failed.`,
+      });
     },
   });
 
@@ -545,6 +557,11 @@ function RequestId({ error }: { error: unknown }) {
       Request ID: <code>{error.requestId}</code>
     </>
   );
+}
+
+function requestIdDetail(error: unknown): string | undefined {
+  if (!(error instanceof ApiError) || !error.requestId) return undefined;
+  return `Request ID: ${error.requestId}`;
 }
 
 function isAdminAuthError(error: unknown): boolean {

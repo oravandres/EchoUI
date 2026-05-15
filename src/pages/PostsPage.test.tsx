@@ -12,6 +12,7 @@ import {
 } from "@/api/adminSession";
 import { type PlatformConnection, listPlatforms } from "@/api/platforms";
 import { type Post, createPosts, deletePost, listPosts } from "@/api/posts";
+import { ToastProvider } from "@/components/ToastProvider";
 import { PostsPage } from "@/pages/PostsPage";
 
 vi.mock("@/api/adminSession", async () => {
@@ -161,6 +162,9 @@ describe("PostsPage", () => {
         { csrfToken: "csrf-1" }
       );
     });
+    expect(
+      await screen.findByText("Post request completed.")
+    ).toBeInTheDocument();
   });
 
   it("keeps publishing disabled when no enabled platforms are available", async () => {
@@ -197,6 +201,7 @@ describe("PostsPage", () => {
         csrfToken: "csrf-1",
       });
     });
+    expect(await screen.findByText("Post deleted.")).toBeInTheDocument();
   });
 
   it("keeps cached posts visible when a refresh fails", async () => {
@@ -271,7 +276,9 @@ function createTestQueryClient() {
 function renderWithQueryClient(ui: ReactNode, client = createTestQueryClient()) {
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>{ui}</MemoryRouter>
+      <ToastProvider>
+        <MemoryRouter>{ui}</MemoryRouter>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }
