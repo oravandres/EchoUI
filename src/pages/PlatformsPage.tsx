@@ -16,11 +16,13 @@ import { ApiError } from "@/api/client";
 import {
   type CreatePlatformInput,
   type PlatformConnection,
+  type PlatformKind,
   type PlatformStatus,
   type UpdatePlatformInput,
   createPlatform,
   deletePlatform,
   listPlatforms,
+  startFacebookOAuthConnection,
   startXOAuthConnection,
   updatePlatform,
 } from "@/api/platforms";
@@ -30,6 +32,11 @@ const statusLabels: Record<PlatformStatus, string> = {
   healthy: "Healthy",
   unhealthy: "Unhealthy",
   unknown: "Unknown",
+};
+
+const platformLabels: Record<PlatformKind, string> = {
+  x: "X",
+  facebook: "Facebook Page",
 };
 
 const lockedAdminSession: AdminSession = {
@@ -49,7 +56,9 @@ export function PlatformsPage() {
   const [searchParams] = useSearchParams();
   const { notify } = useToasts();
   const [loginToken, setLoginToken] = useState("");
+  const [platformKind, setPlatformKind] = useState<PlatformKind>("x");
   const [displayName, setDisplayName] = useState("Main X");
+  const [facebookPageId, setFacebookPageId] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [enabled, setEnabled] = useState(true);
   const [showManualToken, setShowManualToken] = useState(false);
@@ -72,8 +81,8 @@ export function PlatformsPage() {
   const adminSession = adminSessionQuery.data;
   const isAuthenticated = adminSession?.authenticated === true;
   const csrfToken = isAuthenticated ? adminSession.csrfToken : "";
-  const connectStatus =
-    searchParams.get("connect") === "x" ? searchParams.get("status") : null;
+  const connectPlatform = parseConnectPlatform(searchParams.get("connect"));
+  const connectStatus = connectPlatform ? searchParams.get("status") : null;
 
   useEffect(() => {
     if (connectStatus === "connected") {
@@ -139,11 +148,29 @@ export function PlatformsPage() {
   });
 
   const startOAuthMutation = useMutation({
-    mutationFn: (input: { displayName: string; enabled: boolean }) => {
+    mutationFn: (input: {
+      platform: PlatformKind;
+      displayName: string;
+      pageId?: string;
+      enabled: boolean;
+    }) => {
       if (csrfToken === "") {
         throw new Error("admin session is not available");
       }
-      return startXOAuthConnection(input, { csrfToken });
+      if (input.platform === "facebook") {
+        return startFacebookOAuthConnection(
+          {
+            displayName: input.displayName,
+            pageId: input.pageId,
+            enabled: input.enabled,
+          },
+          { csrfToken }
+        );
+      }
+      return startXOAuthConnection(
+        { displayName: input.displayName, enabled: input.enabled },
+        { csrfToken }
+      );
     },
     onError: (error) => {
       if (isAdminAuthError(error)) {
@@ -151,7 +178,7 @@ export function PlatformsPage() {
       }
       notify({
         tone: "warning",
-        title: "X connection failed.",
+        title: `${platformLabels[platformKind]} connection failed.`,
         detail: requestIdDetail(error),
       });
     },
@@ -177,7 +204,7 @@ export function PlatformsPage() {
     const token = accessToken.trim();
     if (name === "" || token === "") return;
     createMutation.mutate({
-      platform: "x",
+      platform: platformKind,
       displayName: name,
       credentials: { accessToken: token },
       enabled,
@@ -188,7 +215,13 @@ export function PlatformsPage() {
     event.preventDefault();
     const name = displayName.trim();
     if (name === "") return;
-    startOAuthMutation.mutate({ displayName: name, enabled });
+    const pageId = facebookPageId.trim();
+    startOAuthMutation.mutate({
+      platform: platformKind,
+      displayName: name,
+      pageId: platformKind === "facebook" && pageId !== "" ? pageId : undefined,
+      enabled,
+    });
   }
 
   return (
@@ -210,17 +243,17 @@ export function PlatformsPage() {
 
       {connectStatus === "connected" ? (
         <p className="status-banner status-banner-success" role="status">
-          X connection added. Refreshing platform status.
+          {connectPlatformLabel(connectPlatform)} connection added. Refreshing platform status.
         </p>
       ) : null}
       {connectStatus === "denied" ? (
         <p className="status-banner status-banner-warning" role="status">
-          X connection was cancelled.
+          {connectPlatformLabel(connectPlatform)} connection was cancelled.
         </p>
       ) : null}
       {connectStatus === "failed" ? (
         <p className="status-banner status-banner-warning" role="alert">
-          Echo could not connect X.
+          Echo could not connect {connectPlatformLabel(connectPlatform)}.
         </p>
       ) : null}
 
@@ -235,8 +268,16 @@ export function PlatformsPage() {
         loginError={loginMutation.error}
         onLogout={() => logoutMutation.mutate()}
         isLoggingOut={logoutMutation.isPending}
+        platformKind={platformKind}
+        onPlatformKindChange={(next) => {
+          setPlatformKind(next);
+          setDisplayName(next === "facebook" ? "Facebook Page" : "Main X");
+          setAccessToken("");
+        }}
         displayName={displayName}
         onDisplayNameChange={setDisplayName}
+        facebookPageId={facebookPageId}
+        onFacebookPageIdChange={setFacebookPageId}
         accessToken={accessToken}
         onAccessTokenChange={setAccessToken}
         enabled={enabled}
@@ -322,8 +363,12 @@ type PlatformAdminPanelProps = {
   loginError: unknown;
   onLogout: () => void;
   isLoggingOut: boolean;
+  platformKind: PlatformKind;
+  onPlatformKindChange: (platform: PlatformKind) => void;
   displayName: string;
   onDisplayNameChange: (displayName: string) => void;
+  facebookPageId: string;
+  onFacebookPageIdChange: (pageId: string) => void;
   accessToken: string;
   onAccessTokenChange: (accessToken: string) => void;
   enabled: boolean;
@@ -350,8 +395,12 @@ function PlatformAdminPanel({
   loginError,
   onLogout,
   isLoggingOut,
+  platformKind,
+  onPlatformKindChange,
   displayName,
   onDisplayNameChange,
+  facebookPageId,
+  onFacebookPageIdChange,
   accessToken,
   onAccessTokenChange,
   enabled,
@@ -367,6 +416,7 @@ function PlatformAdminPanel({
   createSucceeded,
 }: PlatformAdminPanelProps) {
   const isAuthenticated = adminSession?.authenticated === true;
+  const selectedPlatformLabel = platformLabels[platformKind];
   const canStartOAuth =
     isAuthenticated &&
     displayName.trim() !== "" &&
@@ -456,10 +506,14 @@ function PlatformAdminPanel({
                 <select
                   id="platform-kind"
                   className="platform-select"
-                  defaultValue="x"
-                  disabled
+                  value={platformKind}
+                  disabled={isStartingOAuth || isCreating}
+                  onChange={(event) =>
+                    onPlatformKindChange(event.target.value as PlatformKind)
+                  }
                 >
                   <option value="x">X</option>
+                  <option value="facebook">Facebook Page</option>
                 </select>
               </label>
               <label
@@ -477,6 +531,25 @@ function PlatformAdminPanel({
               </label>
             </div>
 
+            {platformKind === "facebook" ? (
+              <label
+                className="platform-form-field"
+                htmlFor="platform-facebook-page-id"
+              >
+                <span className="composer-label">Facebook Page ID</span>
+                <input
+                  id="platform-facebook-page-id"
+                  className="admin-token-input"
+                  type="text"
+                  inputMode="numeric"
+                  value={facebookPageId}
+                  onChange={(event) =>
+                    onFacebookPageIdChange(event.target.value)
+                  }
+                />
+              </label>
+            ) : null}
+
             <label className="form-checkbox" htmlFor="platform-enabled">
               <input
                 id="platform-enabled"
@@ -488,13 +561,13 @@ function PlatformAdminPanel({
             </label>
 
             <button className="composer-button" type="submit" disabled={!canStartOAuth}>
-              {isStartingOAuth ? "Connecting" : "Connect X"}
+              {isStartingOAuth ? "Connecting" : `Connect ${selectedPlatformLabel}`}
             </button>
             {oauthStartError ? (
               <p className="section-copy" role="alert">
                 {isOAuthUnavailable(oauthStartError)
-                  ? "X connection is not configured in Echo."
-                  : "Echo could not start X connection."}
+                  ? `${selectedPlatformLabel} connection is not configured in Echo.`
+                  : `Echo could not start ${selectedPlatformLabel} connection.`}
                 <RequestId error={oauthStartError} />
               </p>
             ) : null}
@@ -512,7 +585,9 @@ function PlatformAdminPanel({
           {showManualToken ? (
             <form className="platform-form" onSubmit={onCreateSubmit}>
               <label className="platform-form-field" htmlFor="platform-access-token">
-                <span className="composer-label">X access token</span>
+                <span className="composer-label">
+                  {selectedPlatformLabel} access token
+                </span>
                 <input
                   id="platform-access-token"
                   className="admin-token-input"
@@ -663,7 +738,7 @@ function PlatformCard({
         <div>
           <h2 className="platform-name">{platform.displayName}</h2>
           <p className="platform-meta">
-            {platform.platform}
+            {platformDisplayName(platform.platform)}
             {platform.accountHandle ? ` - ${platform.accountHandle}` : ""}
           </p>
         </div>
@@ -710,7 +785,9 @@ function PlatformCard({
               className="platform-form-field"
               htmlFor={`platform-credential-${platform.id}`}
             >
-              <span className="composer-label">New X access token</span>
+              <span className="composer-label">
+                New {platformDisplayName(platform.platform)} access token
+              </span>
               <input
                 id={`platform-credential-${platform.id}`}
                 className="admin-token-input"
@@ -838,6 +915,27 @@ function isAdminAuthError(error: unknown): boolean {
 
 function isOAuthUnavailable(error: unknown): boolean {
   return error instanceof ApiError && error.status === 503;
+}
+
+function parseConnectPlatform(value: string | null): PlatformKind | null {
+  if (value === "x" || value === "facebook") {
+    return value;
+  }
+  return null;
+}
+
+function connectPlatformLabel(platform: PlatformKind | null): string {
+  if (platform === null) {
+    return "platform";
+  }
+  return platformLabels[platform];
+}
+
+function platformDisplayName(platform: string): string {
+  if (platform === "x" || platform === "facebook") {
+    return platformLabels[platform];
+  }
+  return platform;
 }
 
 function getDisplayStatus(platform: PlatformConnection): {

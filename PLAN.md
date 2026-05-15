@@ -143,7 +143,7 @@ unset, preventing accidental deploys with a dangling API reference.
 | `/` | Dashboard | Stats overview, API health, recent activity |
 | `/posts` | Posts | Post history, admin-session composer, and delete controls |
 | `/posts/{id}` | Post Detail | Post content, platform status, and latest public engagement metrics |
-| `/platforms` | Platforms | Connected accounts, X OAuth connection, health status, and admin-session platform management |
+| `/platforms` | Platforms | Connected accounts, X/Facebook OAuth connection, health status, and admin-session platform management |
 | `/stats` | Statistics | Aggregate post, platform, latest public engagement, and engagement trend summary |
 
 ---

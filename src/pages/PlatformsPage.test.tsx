@@ -15,6 +15,7 @@ import {
   deletePlatform,
   type PlatformConnection,
   listPlatforms,
+  startFacebookOAuthConnection,
   startXOAuthConnection,
   updatePlatform,
 } from "@/api/platforms";
@@ -44,6 +45,7 @@ vi.mock("@/api/platforms", async () => {
     ...actual,
     listPlatforms: vi.fn(),
     createPlatform: vi.fn(),
+    startFacebookOAuthConnection: vi.fn(),
     startXOAuthConnection: vi.fn(),
     updatePlatform: vi.fn(),
     deletePlatform: vi.fn(),
@@ -55,6 +57,7 @@ const loginAdminSessionMock = vi.mocked(loginAdminSession);
 const logoutAdminSessionMock = vi.mocked(logoutAdminSession);
 const listPlatformsMock = vi.mocked(listPlatforms);
 const createPlatformMock = vi.mocked(createPlatform);
+const startFacebookOAuthConnectionMock = vi.mocked(startFacebookOAuthConnection);
 const startXOAuthConnectionMock = vi.mocked(startXOAuthConnection);
 const updatePlatformMock = vi.mocked(updatePlatform);
 const deletePlatformMock = vi.mocked(deletePlatform);
@@ -66,6 +69,7 @@ describe("PlatformsPage", () => {
     logoutAdminSessionMock.mockResolvedValue(undefined);
     listPlatformsMock.mockResolvedValue(platformsResponse([]));
     createPlatformMock.mockResolvedValue(xPlatform);
+    startFacebookOAuthConnectionMock.mockReturnValue(new Promise(() => {}));
     startXOAuthConnectionMock.mockReturnValue(new Promise(() => {}));
     updatePlatformMock.mockResolvedValue(xPlatform);
     deletePlatformMock.mockResolvedValue(undefined);
@@ -98,7 +102,7 @@ describe("PlatformsPage", () => {
       await screen.findByRole("heading", { name: "Main X" })
     ).toBeInTheDocument();
     expect(screen.getByText("Healthy")).toBeInTheDocument();
-    expect(screen.getByText("x - @echo.test")).toBeInTheDocument();
+    expect(screen.getByText("X - @echo.test")).toBeInTheDocument();
     expect(
       screen.queryByRole("form", { name: "Manage Main X" })
     ).not.toBeInTheDocument();
@@ -181,6 +185,30 @@ describe("PlatformsPage", () => {
     expect(screen.queryByLabelText("X access token")).not.toBeInTheDocument();
   });
 
+  it("starts Facebook OAuth connection with an optional Page ID", async () => {
+    const user = userEvent.setup();
+    listPlatformsMock.mockResolvedValue(platformsResponse([]));
+
+    renderWithQueryClient(<PlatformsPage />);
+
+    await user.type(screen.getByLabelText("Admin token"), "secret");
+    await user.click(screen.getByRole("button", { name: "Unlock" }));
+
+    await user.selectOptions(await screen.findByLabelText("Platform"), "facebook");
+    await user.clear(screen.getByLabelText("Display name"));
+    await user.type(screen.getByLabelText("Display name"), "Echo Page");
+    await user.type(screen.getByLabelText("Facebook Page ID"), "page-1");
+    await user.click(screen.getByRole("button", { name: "Connect Facebook Page" }));
+
+    await waitFor(() => {
+      expect(startFacebookOAuthConnectionMock).toHaveBeenCalledWith(
+        { displayName: "Echo Page", pageId: "page-1", enabled: true },
+        { csrfToken: "csrf-1" }
+      );
+    });
+    expect(startXOAuthConnectionMock).not.toHaveBeenCalled();
+  });
+
   it("keeps manual token creation behind the advanced fallback", async () => {
     const user = userEvent.setup();
     getAdminSessionMock.mockResolvedValue(authenticatedSession);
@@ -211,6 +239,34 @@ describe("PlatformsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("creates a manual Facebook Page token connection", async () => {
+    const user = userEvent.setup();
+    getAdminSessionMock.mockResolvedValue(authenticatedSession);
+    listPlatformsMock.mockResolvedValue(platformsResponse([]));
+    createPlatformMock.mockResolvedValue(facebookPlatform);
+
+    renderWithQueryClient(<PlatformsPage />);
+
+    await user.selectOptions(await screen.findByLabelText("Platform"), "facebook");
+    await user.click(screen.getByRole("button", { name: "Advanced manual token" }));
+    await user.clear(screen.getByLabelText("Display name"));
+    await user.type(screen.getByLabelText("Display name"), "Echo Page");
+    await user.type(screen.getByLabelText("Facebook Page access token"), "page-token");
+    await user.click(screen.getByRole("button", { name: "Add platform" }));
+
+    await waitFor(() => {
+      expect(createPlatformMock).toHaveBeenCalledWith(
+        {
+          platform: "facebook",
+          displayName: "Echo Page",
+          credentials: { accessToken: "page-token" },
+          enabled: true,
+        },
+        { csrfToken: "csrf-1" }
+      );
+    });
+  });
+
   it("shows stable OAuth unavailable copy", async () => {
     const user = userEvent.setup();
     getAdminSessionMock.mockResolvedValue(authenticatedSession);
@@ -239,6 +295,23 @@ describe("PlatformsPage", () => {
 
     expect(
       await screen.findByText("X connection added. Refreshing platform status.")
+    ).toBeInTheDocument();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["platforms"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["stats"] });
+  });
+
+  it("renders Facebook OAuth callback result states", async () => {
+    const client = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+
+    renderWithQueryClient(
+      <PlatformsPage />,
+      client,
+      "/platforms?connect=facebook&status=connected"
+    );
+
+    expect(
+      await screen.findByText("Facebook Page connection added. Refreshing platform status.")
     ).toBeInTheDocument();
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["platforms"] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["stats"] });
@@ -465,6 +538,16 @@ const xPlatform: PlatformConnection = {
   platform: "x",
   displayName: "Main X",
   accountHandle: "@echo.test",
+  enabled: true,
+  lastCheckedAt: "2026-05-12T17:00:00Z",
+  lastHealthStatus: "healthy",
+};
+
+const facebookPlatform: PlatformConnection = {
+  id: "platform-2",
+  platform: "facebook",
+  displayName: "Echo Page",
+  accountHandle: "Echo Page",
   enabled: true,
   lastCheckedAt: "2026-05-12T17:00:00Z",
   lastHealthStatus: "healthy",

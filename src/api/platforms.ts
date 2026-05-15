@@ -71,8 +71,10 @@ export type AdminPlatformParams = {
   signal?: AbortSignal;
 };
 
+export type PlatformKind = "x" | "facebook";
+
 export type CreatePlatformInput = {
-  platform: "x";
+  platform: PlatformKind;
   displayName: string;
   credentials: {
     accessToken: string;
@@ -90,6 +92,12 @@ export type UpdatePlatformInput = {
 
 export type StartXOAuthInput = {
   displayName: string;
+  enabled: boolean;
+};
+
+export type StartFacebookOAuthInput = {
+  displayName: string;
+  pageId?: string;
   enabled: boolean;
 };
 
@@ -134,6 +142,25 @@ export async function startXOAuthConnection(
 
   const data = await postJson<unknown>(
     `${ADMIN_API_PREFIX}/x/oauth/start`,
+    input,
+    {
+      credentials: "include",
+      headers,
+      signal: params.signal,
+    }
+  );
+  return startXOAuthResponseSchema.parse(data);
+}
+
+export async function startFacebookOAuthConnection(
+  input: StartFacebookOAuthInput,
+  params: AdminPlatformParams
+): Promise<StartXOAuthResponse> {
+  const headers = new Headers();
+  headers.set(ADMIN_CSRF_HEADER, params.csrfToken);
+
+  const data = await postJson<unknown>(
+    `${ADMIN_API_PREFIX}/facebook/oauth/start`,
     input,
     {
       credentials: "include",
