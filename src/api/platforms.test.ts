@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createPlatform, listPlatforms } from "@/api/platforms";
+import {
+  createPlatform,
+  deletePlatform,
+  listPlatforms,
+  updatePlatform,
+} from "@/api/platforms";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -109,5 +114,76 @@ describe("admin platform API", () => {
     expect(headers.get("X-Echo-CSRF-Token")).toBe("csrf-1");
     expect(headers.has("Authorization")).toBe(false);
     expect(data.accountHandle).toBe("@echo.test");
+  });
+
+  it("updates a platform with cookie credentials and the CSRF header", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        jsonResponse(200, {
+          id: "platform/1",
+          platform: "x",
+          displayName: "Renamed X",
+          externalAccountId: "account-1",
+          externalAccountHandle: "@echo.test",
+          enabled: false,
+          lastCheckedAt: "2026-05-12T17:00:00Z",
+          lastHealthStatus: "unknown",
+          lastHealthError: "",
+          createdAt: "2026-05-12T17:00:00Z",
+          updatedAt: "2026-05-12T18:00:00Z",
+        })
+      );
+
+    const data = await updatePlatform(
+      "platform/1",
+      {
+        displayName: "Renamed X",
+        enabled: false,
+        credentials: { accessToken: "new-token" },
+      },
+      { csrfToken: "csrf-1" }
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8001/api/v1/platforms/platform%2F1",
+      expect.objectContaining({
+        body: JSON.stringify({
+          displayName: "Renamed X",
+          enabled: false,
+          credentials: { accessToken: "new-token" },
+        }),
+        credentials: "include",
+        method: "PATCH",
+      })
+    );
+    const init = fetchMock.mock.calls[0]?.[1];
+    const headers = new Headers(init?.headers);
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("X-Echo-CSRF-Token")).toBe("csrf-1");
+    expect(headers.has("Authorization")).toBe(false);
+    expect(data.displayName).toBe("Renamed X");
+    expect(data.enabled).toBe(false);
+    expect(data.accountHandle).toBe("@echo.test");
+  });
+
+  it("deletes a platform with cookie credentials and the CSRF header", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    await deletePlatform("platform/1", { csrfToken: "csrf-1" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8001/api/v1/platforms/platform%2F1",
+      expect.objectContaining({
+        credentials: "include",
+        method: "DELETE",
+      })
+    );
+    const init = fetchMock.mock.calls[0]?.[1];
+    const headers = new Headers(init?.headers);
+    expect(headers.get("X-Echo-CSRF-Token")).toBe("csrf-1");
+    expect(headers.has("Authorization")).toBe(false);
   });
 });

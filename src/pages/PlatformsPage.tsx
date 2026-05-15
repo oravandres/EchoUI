@@ -1,5 +1,10 @@
-import { useState, type FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState, type FormEvent } from "react";
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   type AdminSession,
   getAdminSession,
@@ -11,8 +16,11 @@ import {
   type CreatePlatformInput,
   type PlatformConnection,
   type PlatformStatus,
+  type UpdatePlatformInput,
   createPlatform,
+  deletePlatform,
   listPlatforms,
+  updatePlatform,
 } from "@/api/platforms";
 
 const statusLabels: Record<PlatformStatus, string> = {
@@ -26,6 +34,11 @@ const lockedAdminSession: AdminSession = {
   csrfToken: "",
   expiresAt: "",
 };
+
+function invalidatePlatformConsumers(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: ["platforms"] });
+  void queryClient.invalidateQueries({ queryKey: ["stats"] });
+}
 
 export function PlatformsPage() {
   const queryClient = useQueryClient();
@@ -87,9 +100,13 @@ export function PlatformsPage() {
     },
     onSuccess: () => {
       setAccessToken("");
-      void queryClient.invalidateQueries({ queryKey: ["platforms", "list"] });
+      invalidatePlatformConsumers(queryClient);
     },
   });
+
+  function lockAdminSession() {
+    queryClient.setQueryData(["admin", "session"], lockedAdminSession);
+  }
 
   function handleLoginSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -196,7 +213,13 @@ export function PlatformsPage() {
       {hasData && platforms.length > 0 ? (
         <ul className="platform-grid" role="list" aria-label="Connected platforms">
           {platforms.map((platform) => (
-            <PlatformCard key={platform.id} platform={platform} />
+            <PlatformCard
+              key={platform.id}
+              platform={platform}
+              canManage={isAuthenticated}
+              csrfToken={csrfToken}
+              onAuthLocked={lockAdminSession}
+            />
           ))}
         </ul>
       ) : null}
@@ -392,11 +415,98 @@ function PlatformAdminPanel({
   );
 }
 
-function PlatformCard({ platform }: { platform: PlatformConnection }) {
+function PlatformCard({
+  platform,
+  canManage,
+  csrfToken,
+  onAuthLocked,
+}: {
+  platform: PlatformConnection;
+  canManage: boolean;
+  csrfToken: string;
+  onAuthLocked: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [displayName, setDisplayName] = useState(platform.displayName);
+  const [enabled, setEnabled] = useState(platform.enabled);
+  const [credentialToken, setCredentialToken] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const status = getDisplayStatus(platform);
   const checkedAt = platform.lastCheckedAt
     ? formatCheckedAt(platform.lastCheckedAt)
     : null;
+
+  useEffect(() => {
+    setDisplayName(platform.displayName);
+    setEnabled(platform.enabled);
+    setConfirmDelete(false);
+  }, [platform.displayName, platform.enabled, platform.id]);
+
+  const updateMutation = useMutation({
+    mutationFn: (input: UpdatePlatformInput) => {
+      if (csrfToken === "") {
+        throw new Error("admin session is not available");
+      }
+      return updatePlatform(platform.id, input, { csrfToken });
+    },
+    onError: (error) => {
+      setCredentialToken("");
+      if (isAdminAuthError(error)) {
+        onAuthLocked();
+      }
+    },
+    onSuccess: () => {
+      setCredentialToken("");
+      invalidatePlatformConsumers(queryClient);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => {
+      if (csrfToken === "") {
+        throw new Error("admin session is not available");
+      }
+      return deletePlatform(platform.id, { csrfToken });
+    },
+    onError: (error) => {
+      setCredentialToken("");
+      if (isAdminAuthError(error)) {
+        onAuthLocked();
+      }
+    },
+    onSuccess: () => {
+      setCredentialToken("");
+      setConfirmDelete(false);
+      invalidatePlatformConsumers(queryClient);
+    },
+  });
+
+  const updateInput = buildUpdateInput(platform, {
+    displayName,
+    enabled,
+    credentialToken,
+  });
+  const isBusy = updateMutation.isPending || deleteMutation.isPending;
+  const canSave =
+    canManage &&
+    updateInput !== null &&
+    displayName.trim() !== "" &&
+    !isBusy;
+
+  function handleManageSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (updateInput === null || displayName.trim() === "") return;
+    updateMutation.mutate(updateInput);
+  }
+
+  function handleDeleteClick() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    deleteMutation.mutate();
+  }
+
   return (
     <li className="platform-card glass">
       <div className="platform-card-header">
@@ -424,8 +534,135 @@ function PlatformCard({ platform }: { platform: PlatformConnection }) {
           "unknown"
         )}
       </p>
+
+      {canManage ? (
+        <form
+          className="platform-management-form"
+          onSubmit={handleManageSubmit}
+          aria-label={`Manage ${platform.displayName}`}
+        >
+          <div className="platform-form-grid">
+            <label
+              className="platform-form-field"
+              htmlFor={`platform-display-name-${platform.id}`}
+            >
+              <span className="composer-label">Display name</span>
+              <input
+                id={`platform-display-name-${platform.id}`}
+                className="admin-token-input"
+                type="text"
+                value={displayName}
+                disabled={isBusy}
+                onChange={(event) => setDisplayName(event.target.value)}
+              />
+            </label>
+            <label
+              className="platform-form-field"
+              htmlFor={`platform-credential-${platform.id}`}
+            >
+              <span className="composer-label">New X access token</span>
+              <input
+                id={`platform-credential-${platform.id}`}
+                className="admin-token-input"
+                type="password"
+                autoComplete="off"
+                value={credentialToken}
+                disabled={isBusy}
+                onChange={(event) => setCredentialToken(event.target.value)}
+              />
+            </label>
+          </div>
+
+          <label
+            className="form-checkbox"
+            htmlFor={`platform-enabled-${platform.id}`}
+          >
+            <input
+              id={`platform-enabled-${platform.id}`}
+              type="checkbox"
+              checked={enabled}
+              disabled={isBusy}
+              onChange={(event) => setEnabled(event.target.checked)}
+            />
+            <span>Enabled</span>
+          </label>
+
+          <div className="platform-management-actions">
+            <button className="composer-button" type="submit" disabled={!canSave}>
+              {updateMutation.isPending ? "Saving" : "Save changes"}
+            </button>
+            <button
+              className="danger-button"
+              type="button"
+              disabled={isBusy}
+              aria-label={
+                confirmDelete
+                  ? `Confirm delete platform ${platform.displayName}`
+                  : `Delete platform ${platform.displayName}`
+              }
+              onClick={handleDeleteClick}
+            >
+              {confirmDelete ? "Confirm delete" : "Delete"}
+            </button>
+            {confirmDelete ? (
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={isBusy}
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancel
+              </button>
+            ) : null}
+          </div>
+
+          {updateMutation.isSuccess ? (
+            <p className="section-copy" role="status">
+              Platform updated. Refreshing status.
+            </p>
+          ) : null}
+        </form>
+      ) : null}
+
+      {updateMutation.isError ? (
+        <p className="section-copy platform-management-message" role="alert">
+          Echo could not update the platform.
+          <RequestId error={updateMutation.error} />
+        </p>
+      ) : null}
+      {deleteMutation.isError ? (
+        <p className="section-copy platform-management-message" role="alert">
+          Echo could not delete the platform.
+          <RequestId error={deleteMutation.error} />
+        </p>
+      ) : null}
     </li>
   );
+}
+
+function buildUpdateInput(
+  platform: PlatformConnection,
+  form: {
+    displayName: string;
+    enabled: boolean;
+    credentialToken: string;
+  }
+): UpdatePlatformInput | null {
+  const input: UpdatePlatformInput = {};
+  const displayName = form.displayName.trim();
+  const credentialToken = form.credentialToken.trim();
+
+  if (displayName !== platform.displayName) {
+    input.displayName = displayName;
+  }
+  if (form.enabled !== platform.enabled) {
+    input.enabled = form.enabled;
+  }
+  if (credentialToken !== "") {
+    input.credentials = { accessToken: credentialToken };
+  }
+
+  return Object.keys(input).length > 0 ? input : null;
 }
 
 function RequestId({ error }: { error: unknown }) {

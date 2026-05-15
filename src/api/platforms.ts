@@ -80,6 +80,14 @@ export type CreatePlatformInput = {
   enabled: boolean;
 };
 
+export type UpdatePlatformInput = {
+  displayName?: string;
+  enabled?: boolean;
+  credentials?: {
+    accessToken: string;
+  };
+};
+
 export async function listPlatforms(
   params: ListPlatformsParams = {}
 ): Promise<PlatformsResponse> {
@@ -102,4 +110,41 @@ export async function createPlatform(
     signal: params.signal,
   });
   return adminPlatformConnectionSchema.parse(data);
+}
+
+export async function updatePlatform(
+  id: string,
+  input: UpdatePlatformInput,
+  params: AdminPlatformParams
+): Promise<PlatformConnection> {
+  const headers = new Headers();
+  headers.set(ADMIN_CSRF_HEADER, params.csrfToken);
+  headers.set("Content-Type", "application/json");
+
+  const data = await fetchJson<unknown>(
+    `${ADMIN_API_PREFIX}/${encodeURIComponent(id)}`,
+    {
+      body: JSON.stringify(input),
+      credentials: "include",
+      headers,
+      method: "PATCH",
+      signal: params.signal,
+    }
+  );
+  return adminPlatformConnectionSchema.parse(data);
+}
+
+export async function deletePlatform(
+  id: string,
+  params: AdminPlatformParams
+): Promise<void> {
+  const headers = new Headers();
+  headers.set(ADMIN_CSRF_HEADER, params.csrfToken);
+
+  await fetchJson<void>(`${ADMIN_API_PREFIX}/${encodeURIComponent(id)}`, {
+    credentials: "include",
+    headers,
+    method: "DELETE",
+    signal: params.signal,
+  });
 }
