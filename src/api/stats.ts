@@ -21,6 +21,16 @@ const platformStatsSchema = z.object({
   unknown: z.number(),
 });
 
+const emptyEngagementStats = {
+  postsMeasured: 0,
+  likeCount: 0,
+  replyCount: 0,
+  repostCount: 0,
+  quoteCount: 0,
+  bookmarkCount: 0,
+  impressionCount: 0,
+};
+
 const engagementStatsSchema = z.object({
   postsMeasured: z.number(),
   likeCount: z.number(),
@@ -36,13 +46,13 @@ const platformBreakdownSchema = z.object({
   platform: z.string(),
   posts: postStatsSchema,
   connections: platformStatsSchema,
-  engagement: engagementStatsSchema,
+  engagement: engagementStatsSchema.optional().default(emptyEngagementStats),
 });
 
 const statsSummarySchema = z.object({
   posts: postStatsSchema,
   platforms: platformStatsSchema,
-  engagement: engagementStatsSchema,
+  engagement: engagementStatsSchema.optional().default(emptyEngagementStats),
   byPlatform: z.array(platformBreakdownSchema),
   generatedAt: z.string(),
 });
