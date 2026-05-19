@@ -1,6 +1,7 @@
 name: ci
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - main
@@ -18,7 +19,7 @@ permissions:
 
 jobs:
   test-and-build:
-    runs-on: ubuntu-latest
+    runs-on: mimi-echoui
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -51,7 +52,7 @@ jobs:
   container:
     needs: test-and-build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: mimi-echoui-build
     permissions:
       contents: read
       packages: write
