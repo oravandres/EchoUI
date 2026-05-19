@@ -2,9 +2,15 @@ name: ci
 
 on:
   pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # Default to the least permissive set; the container job widens for GHCR.
 permissions:
@@ -41,12 +47,10 @@ jobs:
           VITE_ECHO_API_BASE_URL: https://echo.mimi.local
         run: npm run build
 
-  # Builds (and on `push: main`, publishes) the container image. Depends on
-  # `test-and-build` so a merge commit that fails lint/tests/build never
-  # reaches `docker push`. Always runs the build + smoke test so PR CI
-  # exercises the Dockerfile and nginx config that ship with the bundle.
+  # Container build + push runs only on merge to main (not on PRs).
   container:
     needs: test-and-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -73,7 +77,6 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          # Mirrors the Logos pattern: ghcr.io/<owner>/<repo-namespace>/<image>.
           images: ghcr.io/${{ github.repository_owner }}/echoui/echo-ui
           tags: |
             type=sha,prefix=,format=short
